@@ -1,27 +1,31 @@
-# RL Training Risk Replay & Quantitative Analysis
+# RL Training Risk Replay
 
-A quantitative research system for Go2W reinforcement-learning experiments, combining progress-filtered historical replay, configurable risk decisions, data-quality validation and cached time-series analysis.
+Experiment-infrastructure project for reinforcement-learning training runs: collect run telemetry, **chronologically replay** a training process, surface configurable **R0–R3 risk decisions**, and validate experiment-data quality before a result is trusted.
 
-**Domain:** robot training logs and resource telemetry. **Stack:** Python, pandas, NumPy, SciPy, scikit-learn, TensorBoard. **Quality:** 265 tests passed in the documented local run; full Pyright currently reports errors.
+`Chronological Replay` `R0–R3 Risk` `Data Quality` `Experiment Infrastructure`
+
+**Domain:** robot training logs and resource telemetry (Go2W RL experiments). **Stack:** Python, pandas, NumPy, SciPy, scikit-learn, TensorBoard. **Quality:** 265 tests passed in the documented local run; full Pyright currently reports errors and is tracked as technical debt (see [Limitations](#12-limitations)).
 
 [中文说明](README.zh-CN.md) · [Validation and claim boundaries](docs/portfolio-validation.md)
 
-## 1. Overview
+![Architecture: training logs and telemetry are collected into a CSV schema, merged with manual labels, and branch into data-quality checks, cached post-hoc factors and progress-filtered chronological replay, which feeds predictor plugins and R0–R3 decisions for experiment review. This is a system-structure diagram, not an experimental result.](docs/assets/replay-pipeline-architecture.svg)
 
-Collect evaluation curves, TensorBoard scalars, resource snapshots and acceptance reports into structured CSVs. Explore failure signals, replay local recommendations and compare post-hoc baselines. The algorithmic focus is temporal visibility, rule-based decisions and reliable experimental data rather than dashboard UI.
-
-This is training-run analysis, not a market-price, order-execution or trading-return backtester. Online replay implements partial visibility safeguards; it is **not yet end-to-end look-ahead safe**.
-
-## 2. Key Results
+## 1. Key Results
 
 | Verified fact | Evidence and scope |
 |---|---|
-| **265 tests passed** | Python 3.12.14 / macOS, 2026-09-12; no skips in this execution. See validation record. |
+| **265 tests passed** | Python 3.12.14 / macOS, 2026-09-12; no skips in this execution (71.26 s). See [validation record](docs/portfolio-validation.md). |
 | **4 risk levels: R0–R3** | `factors.py`: configurable RiskItem accumulation and decision matrix. |
 | **6 data-quality categories / 20+ checks** | Missingness, outliers, time continuity, duplicates, label consistency and cross-table integrity; `scripts/data_quality_check.py` and its tests. |
 | **3 built-in replay predictors** | Rule engine, always-continue and always-stop; deterministic fixture tests in `tests/test_backtest_engine.py`. |
 
 No numeric speedup or successful-sample false-kill claim is established by this verification. Structural counts are implemented capabilities, not predictive accuracy.
+
+## 2. What This Project Is — and Is Not
+
+Collect evaluation curves, TensorBoard scalars, resource snapshots and acceptance reports into structured CSVs; explore failure signals; replay local recommendations; and compare post-hoc baselines. The algorithmic focus is temporal visibility, rule-based decisions and reliable experimental data rather than dashboard UI.
+
+This is **training-run analysis, not a market-price, order-execution or trading-return backtester** — there is no capital, no order book and no investment-return objective. Online replay implements partial visibility safeguards; it is **not yet end-to-end look-ahead safe**.
 
 ## 3. Why Look-ahead Bias Matters
 
@@ -31,22 +35,11 @@ A decision at time T must not see an experiment's eventual verdict or later tele
 
 ## 4. Architecture
 
-```mermaid
-flowchart LR
- A[Training logs and telemetry] --> B[Collector and CSV schema]
- B --> C[Manual label merge]
- C --> D[Data-quality checks]
- C --> E[Post-hoc factors and cached pipeline]
- C --> F[Progress-filtered replay]
- F --> G[Predictor plugins and R0-R3 decisions]
- E --> H[Analysis reports]
- G --> H
- I[Local training-panel polling] --> J[Local recommendations and logs]
-```
+Replay and post-hoc analysis have different information boundaries and are kept on separate paths in the diagram above. Manual nonempty labels override automated fields by `(task, seed)`; duplicate or invalid labels raise errors. The read-only local training panel produces **local recommendations only** — it sends no external notification and never stops training automatically.
 
-Replay and post-hoc analysis have different information boundaries. Manual nonempty labels override automated fields by `(task, seed)`; duplicate or invalid labels raise errors.
+## 5. Chronological Replay
 
-## 5. Online Backtesting
+The replay engine is implemented in modules that carry their original `backtest_*` filenames; the naming is historical and does **not** imply financial backtesting.
 
 - `backtest_rules.py`: snapshot-axis rule replay and estimated counterfactual training cost.
 - `backtest_engine.py`: chronological target runs, eligible historical training runs and decision-progress checkpoints.
@@ -59,19 +52,19 @@ Rule confidence is derived from severity, not a calibrated probability. Lack of 
 
 `run_factors` extracts reward drawdown, low-reward windows, KL/value-loss signals, stagnation, restarts and resource pressure. `run_risk_items` accumulates threshold-driven risk items; `decide` maps R0–R3 to `continue`, `watch`, `stop`, `tune` or `resize`.
 
-These are local recommendations. The monitor does not send external notifications or automatically stop training. Exact rule count depends on whether factor codes, threshold branches or decision conditions are counted; this README does not claim “17 composable rules.”
+These are local recommendations. The monitor does not send external notifications or automatically stop training. The exact rule count depends on the counting convention (factor codes, threshold branches or decision conditions), so no single fixed rule total is claimed.
 
 ## 7. Data Quality
 
 The read-only checker emits Markdown/CSV and optional JSON issues. Six categories cover missingness, outliers, temporal continuity, duplicates, label consistency and integrity. Exit codes: 0 without critical issues, 1 with critical issues, 2 for runtime failures.
 
-`data_screening.py` separately classifies experiment records as good, insufficient or anomalous using four screening rules. Validation functionality does not imply the committed dataset is issue-free.
+`data_screening.py` separately classifies experiment records as good, insufficient or anomalous using four screening rules. Validation functionality does not imply the committed dataset is issue-free — the documented isolated read-only run graded the committed dataset **D with 128 issues (21 critical), exit code 1**, which is a detected-data result rather than a broken checker.
 
 ## 8. Performance Optimization
 
 `run_pipeline.py` loads tables once and passes DataFrames and a per-run factor cache between analysis stages. `tests/test_pipeline.py` checks cached/direct output equivalence and standalone/pipeline compatibility. Rule replay keeps its time-specific computation separate from full-run caching.
 
-The CLI supports `--verbose` stage timings. No controlled baseline supports 97s→21s or 4.6×; a future benchmark must fix input commit, environment, stages and output-equivalence criteria.
+The CLI supports `--verbose` stage timings. No end-to-end timing speedup number is claimed; a future benchmark must fix input commit, environment, stages and output-equivalence criteria.
 
 ## 9. Validation
 
@@ -84,8 +77,8 @@ Full-run baselines use final acceptance information and are **post-hoc analyses*
 Offline analysis needs no training server. Python 3.12 is the current validation/CI target.
 
 ```bash
-git clone https://github.com/Anhao1314/go2_lianghua.git
-cd go2_lianghua
+git clone https://github.com/Anhao1314/rl-training-risk-replay.git
+cd rl-training-risk-replay
 python -m venv .venv
 source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
@@ -110,7 +103,7 @@ python -m pyright --pythonpath .venv/bin/python --outputjson
 
 On Windows use `.venv\Scripts\python.exe` for `--pythonpath`. Local verification: **265 passed**, **Pyright 1,645 errors / 0 warnings across 36 Python files**. Runtime requirements currently use lower bounds, not a fully locked environment.
 
-GitHub Actions installs dependencies, gates on tests and runs full Pyright as an **advisory** check with an uploaded diagnostic report. A successful workflow does not mean type checking passed. There is no fabricated tests/CI badge. No license has been selected.
+GitHub Actions installs dependencies and gates on tests under Linux/Python 3.12, and runs full Pyright as an **advisory** check with an uploaded diagnostic report. A successful workflow does not mean type checking passed. There is no fabricated tests/CI badge. No license has been selected.
 
 ## 12. Limitations
 
@@ -118,7 +111,7 @@ GitHub Actions installs dependencies, gates on tests and runs full Pyright as an
 - Sparse/uneven labels and snapshot coverage limit false-positive, cross-task and sample-out validation.
 - Snapshot duration measures observation span, not effective compute time; savings are counterfactual estimates, not realized cost reductions.
 - CSV replacement is atomic per file, not a multi-table transaction; live collection and cross-platform collection are not validated by offline CI.
-- Full Pyright has unresolved findings. Dependencies are not fully pinned.
+- Full Pyright has unresolved findings (1,645 errors). Dependencies are not fully pinned.
 - No production trading, live capital, return-rate, user/customer or autonomous early-stop claim.
 
 Next priorities: as-of metadata and label availability, future-data mutation tests, type debt reduction, comparable benchmarks and multi-table publication consistency. [Research history](PHASE_RECORD.md) is historical context, not current performance evidence.
