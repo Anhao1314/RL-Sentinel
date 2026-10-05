@@ -127,7 +127,7 @@ class Event:
             if payload["verdict"] not in ("pass", "fail", "unknown") or payload["source"] not in ("manual", "evaluation"):
                 raise ContractError("invalid label verdict or source")
             clean = {"verdict": cast(str, payload["verdict"]), "source": cast(str, payload["source"])}
-        return cls(event_id, run_id, cast(Kind, kind), event_time, available_at,
+        return cls(event_id, run_id, kind, event_time, available_at,
                    tuple(sorted(clean.items())))
 
     def payload(self) -> dict[str, Scalar]:

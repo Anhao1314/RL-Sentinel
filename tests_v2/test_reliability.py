@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from contextlib import closing
 from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 from unittest.mock import patch
@@ -322,7 +323,7 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(len(self.store.read()[0]), 7)
 
     def test_sql_fault_mid_batch_rolls_back(self):
-        with sqlite3.connect(str(self.store.path)) as con:
+        with closing(sqlite3.connect(str(self.store.path))) as con, con:
             con.execute("CREATE TRIGGER fault BEFORE INSERT ON events WHEN NEW.event_id='target-s2' BEGIN SELECT RAISE(ABORT,'injected write fault'); END")
         with self.assertRaises(sqlite3.IntegrityError):
             self.store.append(run_events())
@@ -346,7 +347,7 @@ class StorageTest(unittest.TestCase):
 
     def test_sql_updates_and_deletes_rejected(self):
         self.store.append(run_events())
-        with sqlite3.connect(str(self.store.path)) as con:
+        with closing(sqlite3.connect(str(self.store.path))) as con, con:
             for sql in ("DELETE FROM events", "UPDATE events SET body='{}'"):
                 with self.assertRaises(sqlite3.IntegrityError):
                     con.execute(sql)
@@ -434,7 +435,7 @@ class BundleAndCliTest(unittest.TestCase):
         out = self.root / "out"
         self.assertEqual(main(["replay", "--events", str(events), "--out", str(out)]), 0)
         self.assertEqual(main(["verify", "--bundle", str(out)]), 0)
-        result = json.loads((out/"results.json").read_text())
+        result = json.loads((out/"results.json").read_text(encoding="utf-8"))
         self.assertEqual(len(result["summaries"]), 9)
         self.assertEqual(main(["replay", "--events", str(events), "--out", str(out)]), 2)
 

@@ -41,7 +41,7 @@ def decode_events(content: str) -> tuple[tuple[Event, ...], Origin]:
             events.append(Event.from_dict(parse_json(line)))
         except (ValueError, TypeError) as exc:
             raise ContractError(f"event line {n}: {exc}") from exc
-    return validate_events(tuple(events)), cast(Origin, header["origin"])
+    return validate_events(tuple(events)), header["origin"]
 
 
 class EventStore:
