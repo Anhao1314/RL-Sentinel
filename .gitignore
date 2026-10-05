@@ -10,3 +10,13 @@ data/monitor/
 config.local.json
 .env
 .pytest_cache/
+artifacts/
+*.egg-info/
+build/
+dist/
+*-junit.xml
+pyright-results.json
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

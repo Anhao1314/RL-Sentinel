@@ -1,106 +1,85 @@
-# RL Training Risk Replay · 强化学习训练风险回放
+# RL 训练可靠性与风险回放
 
-面向强化学习训练过程的实验基础设施：采集训练运行遥测，**按时间顺序回放（chronological replay）**训练过程，给出可配置的 **R0–R3 风险决策**，并在采信结果前校验实验数据质量。
+这是训练器之外的**可靠性与证据层**，不是交易回测，也不是已经验证有效的自动早停器。
+0.2 版把主入口升级为 `python -m rl_risk_replay`：记录当时真正可见的数据，
+重放建议，衡量误停与漏检，并保存可以复核的实验产物。系统仍只输出本地建议。
 
-`时序回放` `R0–R3 风险` `数据质量` `实验基础设施`
+[English](README.md) · [协议、使用与迁移](docs/RELIABILITY_V2.md) · [历史验证记录](docs/portfolio-validation.md)
 
-**领域：** 机器人（Go2W）训练日志与资源遥测，不是金融行情数据。**技术栈：** Python、pandas、NumPy、SciPy、scikit-learn、TensorBoard。**质量：** 文档记录的本地运行 265 项测试通过；完整 Pyright 当前仍有错误，作为技术债公开跟踪（见[已知限制](#已知限制)）。
+## 先运行一次真实实验
 
-[English](README.md) · [核验与声明边界](docs/portfolio-validation.md)
+在仓库根目录，使用 Python 3.12 或以上，无需 GPU，也无需安装第三方运行依赖：
 
-![架构图：训练日志与遥测经采集进入 CSV schema，与人工标签合并后分流到数据质量检查、缓存的事后因子、按进度过滤的时序回放，再进入预测器插件与 R0–R3 决策，用于实验复盘。本图为系统结构，不是实验结果。](docs/assets/replay-pipeline-architecture.svg)
+```bash
+python -m rl_risk_replay experiment --out artifacts/controlled-run
+python -m rl_risk_replay verify --bundle artifacts/controlled-run
+```
 
-## 关键结果
+程序实际执行 18 次表格型 Q-learning：同一 4×4 网格场景、6 个种子，分别使用
+正常学习、关闭学习、后期清空策略并冻结学习三种条件。每次训练 4000 个环境步，
+每 250 步记录评估，最终用不同随机种子的 30 回合评估产生标签。
+在预算 30%、50%、70% 比较规则、始终继续、始终停止三个策略。
 
-| 已核验事实 | 证据与范围 |
+**这是真实运行的受控故障实验，不是生成的假日志，也不是 Go2W 或实际部署效果验证。**
+故障条件保存在评估侧，不放进预测器的目标输入。所有产物保留 `controlled` 标记，
+即使成功/失败样本数量达到门槛，也不允许被标记为已证明实际效果。
+
+输出目录包含可离线打开的 `report.html`、逐次决策与输入的 `results.json`、
+事件流、最终 Q 表、实验协议与 SHA-256 清单。目录已存在则拒绝覆盖。
+
+## 改造的核心
+
+| 原问题 | 新协议 |
 | --- | --- |
-| **265 项测试通过** | Python 3.12.14 / macOS，2026-09-12，本次无跳过（耗时 71.26 s），见[核验记录](docs/portfolio-validation.md) |
-| **4 个风险等级 R0–R3** | `factors.py`：可配置的 RiskItem 累积与决策矩阵 |
-| **6 类数据质量 / 20+ 检查** | 缺失、离群、时间连续性、重复、标签一致性、跨表完整性；`scripts/data_quality_check.py` 及其测试 |
-| **3 个内置回放预测器** | 规则引擎、always-continue、always-stop；`tests/test_backtest_engine.py` 确定性 fixture 测试 |
+| 整张 runs 表进入在线视图 | 目标输入仅含白名单启动字段与截止时刻可见的观测，不含最终标签、时长和未来 run。 |
+| 结束即被认为已有标签 | 结束、验收标签、人工修订分别记录；历史训练成员需要在目标开始前已经结束且标签可见。 |
+| 低 step 的迟到遥测可能被提前看见 | 同时检查事件时间与可用时间，不能只按训练步数截断。 |
+| 误杀率分母不清 | 明确区分停止精确率、误停占比、成功样本误杀率、失败召回率。 |
+| 缺数据被误当成无风险 | 输出 abstain，单独记录覆盖率、跳过原因、未知标签。 |
+| CSV 分批写入不一致 | 新事件存储采用 SQLite 事务；输出先暂存，完成后以清单校验的目录发布。 |
+| 原始历史数据时间证据不够 | 保留只读审计，不从文件时间、step 或最终结果反推 available_at。 |
 
-上述为已实现的结构能力，不代表预测准确率；不存在任何提速倍数或“成功样本零误杀”的结论。
+## 接入新训练
 
-## 这是什么 / 不是什么
+```python
+from pathlib import Path
+from rl_risk_replay.storage import EventStore
 
-把评估曲线、TensorBoard 标量、资源快照与验收报告整理成结构化 CSV，分析失败信号、回放本地建议、比较事后基线。算法重点是时间可见性、规则决策与实验数据可靠性，而非仪表盘界面。
-
-这是**训练运行分析，不是行情、下单或交易收益回测系统**：没有资金、没有订单簿、没有投资收益目标。在线回放只实现了部分可见性防护，**尚未做到端到端无前视（look-ahead safe）**。
-
-## 为什么重视前视偏差
-
-T 时刻的决策不应看到实验的最终结论或更晚的遥测。`online_view` 按时间截断快照、按已观测进度截断评估/TensorBoard 行、排除报告并强制 `completed=False`；滚动训练集选择要求每个被选历史运行的估计结束时间早于目标开始时间。
-
-**剩余边界：** 该视图仍会整张复制 `runs` 表（包含最终结论/时长以及无关的未来运行）；结束时间估计与标签可得性尚未按 T 时刻跟踪；现有 `test_no_time_leakage` 只校验训练集成员关系，不校验预测器输入的完全隔离，因此不能据此宣称端到端保证。
-
-## 时序回放（Chronological Replay）
-
-回放引擎所在模块仍保留历史文件名 `backtest_*.py`；这只是历史命名，**不代表金融回测**。
-
-- `backtest_rules.py`：按快照轴的规则回放，以及估计的反事实训练成本。
-- `backtest_engine.py`：按时间顺序排列目标运行、可用历史训练运行与决策进度检查点。
-- 预测器接口：`(train_runs_info, target_online, cfg) -> {stop, confidence, reason}`。
-- 输出记录被跳过的样本与结束时间估计方式（`actual` / `step_rate` / `task_mean`）。
-
-规则置信度来自严重程度，不是校准概率；缺少快照可能让成功运行无法进入滚动评估。记录中 0.3/0.5 进度有 4 个已标注失败、**0 个成功样本**，误杀率为 N/A，其表观准确率不适合作为标题结论。规则的确切数量取决于统计口径（因子代码 / 阈值分支 / 决策条件），因此不声称某个固定规则总数。
-
-## 风险引擎
-
-`run_factors` 提取奖励回撤、低奖励窗口、KL/value-loss 信号、停滞、重启与资源压力；`run_risk_items` 累积阈值触发的风险项；`decide` 把 R0–R3 映射为 `continue / watch / stop / tune / resize`。这些都是**本地建议**：不发送外部通知，也不会自动停止训练。
-
-## 数据质量
-
-只读检查器输出 Markdown/CSV 与可选 JSON 问题，覆盖六类；退出码：0 无严重问题、1 存在严重问题、2 运行失败。`data_screening.py` 另用 4 条筛选规则把实验记录分为 good / insufficient / anomalous。文档记录的隔离只读运行把已提交数据集评为 **D 级、128 个问题（21 个严重）、退出码 1**——这是“检测出数据问题”，不是检查器实现失败，也不代表已提交数据集没有问题。
-
-## 性能与缓存
-
-`run_pipeline.py` 只加载一次表，在各分析阶段之间传递 DataFrame 与逐运行因子缓存；`tests/test_pipeline.py` 校验缓存/直算结果等价。CLI 支持 `--verbose` 分阶段计时。不声明端到端提速倍数；未来基准必须固定输入提交、环境、阶段与输出等价标准。
-
-## 离线快速开始
-
-离线分析不需要训练服务器，当前验证/CI 目标为 Python 3.12。
-
-```bash
-git clone https://github.com/Anhao1314/rl-training-risk-replay.git
-cd rl-training-risk-replay
-python -m venv .venv
-source .venv/bin/activate
-# Windows PowerShell 使用 .venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt
-python summary.py
-python run_pipeline.py --today 2026-09-12 --out data/modeling/local_review --verbose
-python backtest_engine.py --today 2026-09-12 --out data/modeling/local_replay --decision-progress 0.3,0.5,0.7
-python scripts/data_quality_check.py --today 2026-09-12 --out data/quality/local_review --json
+store = EventStore.create(Path("artifacts/training.sqlite"))
+store.record("attempt-001", "start", {
+    "task": "go2w-navigation", "seed": "1", "planned_steps": 2_000_000,
+})
+# 在训练观察回调中，每个增长的 step 记录一个汇总样本。
+store.record("attempt-001", "sample", {
+    "step": 100_000, "reward": 15.2, "approx_kl": 0.02,
+})
+# 完成时与得到验收标签时分开记录，不要提前写最终结果。
+store.record("attempt-001", "finish", {"status": "completed"})
+store.record("attempt-001", "label", {"verdict": "pass", "source": "evaluation"})
 ```
 
-输出目录与历史报告分离；`--today` 只用于命名输出，不会截断输入。Windows 入口见 [WINDOWS.md](WINDOWS.md)。
-
-## 数据采集端与本地监控
-
-复制 `config.example.json` 为被忽略的 `config.local.json`，填写本机训练源路径；公开默认没有采集源。`python collector.py` 只读训练源并写入本仓库数据目录，单文件原子替换、多表并非整批事务，读取与采集不应并发。本地监控：`python realtime_monitor.py --once`（默认读 localhost:8787），只输出本地表格、风险建议与日志，不发飞书消息，也不自动停止训练；ETA 是进度估算，不是已验证预测模型。
-
-## 测试与质量
+这个示例只说明事件 API，不宣称一次 sample 足以支持风险判断。记录器用当前本机时间
+标记可用时间；远端事件需要可比较的时钟。重启或 step 归零必须使用新的 run_id。
 
 ```bash
-python -m pytest tests/ -q
-python -m pyright --pythonpath .venv/bin/python --outputjson
+python -m rl_risk_replay replay --db artifacts/training.sqlite --out artifacts/replay-001
+python -m rl_risk_replay audit-legacy --dataset data/datasets --out artifacts/historical-audit
 ```
 
-本地核验：**265 通过**；**Pyright 36 个文件、1,645 个错误、0 警告**。GitHub Actions 在 Linux/Python 3.12 上以测试作为门禁，并把完整 Pyright 作为**建议性（advisory）**检查、上传诊断报告；工作流成功不代表类型检查通过。没有伪造 tests/CI 徽章，当前未选择开源许可证。
+新核心默认不依赖 pandas、MuJoCo 或训练服务器。支持安装为 `rl-risk` 命令，
+也支持直接从仓库运行。事件字段、迟到数据、人工标签优先级与指标定义见协议文档。
 
-## 已知限制
+## 验证边界
 
-- 预测器输入尚未与最终元数据完全隔离，暂不能宣称无前视。
-- 标签稀疏/不均、快照覆盖有限，限制了误报、跨任务与样本外验证。
-- 快照时长是观测跨度而非有效计算时长，节省量是反事实估计，不是已实现降本。
-- CSV 为单文件原子替换而非多表事务；在线采集与跨平台采集未经离线 CI 验证。
-- 完整 Pyright 仍有未解决问题（1,645 错误）；依赖未完全锁定。
-- 不声明生产交易、真实资金、收益率、用户/客户或自动早停。
+Linux 和 Windows 的新核心测试、200 组未来信息扰动及真实受控实验由 CI 执行；
+新核心严格类型检查是硬门槛。历史全量类型检查仍是 advisory，不会因新核心通过就被说成清零。
+旧测试在 Linux 上单独回归；实际测试数量、环境、结果与原始产物以对应提交的 Actions 为准。
 
-后续优先：as-of 元数据与标签可得性、未来数据变异测试、压缩类型债、可比基准、多表发布一致性。[研究历程](PHASE_RECORD.md)仅为历史背景，不是当前性能证据。
+旧 `backtest_engine.py`、`backtest_rules.py` 的命令行需要显式增加
+`--legacy-retrospective`。旧 Python API 保留历史语义，实际实现归档在 `legacy/`。
+**旧路径仍有已知时间泄漏，不能作为在线预测依据。** 原采集器、CSV schema、人工标签覆盖规则、
+风险因子和历史报告不改写；新协议不假装修复过去的时间证据。
 
-## 文档导航
-
-[数据字典](DATA_DICTIONARY.md) · [数学定义](MATH_LIBRARY.md) · [开发约定](AGENTS.md) · [Windows 指南](WINDOWS.md)
-
-数据同步脚本（`scripts/sync_github.sh`）可能提交/推送数据，不属于离线复现范围；安装定时任务前先手动验证采集与离线管线。
+样本门槛不是统计显著性。当前规则并不覆盖所有失败类型，受控实验不代表跨任务泛化。
+剩余墙钟时间不是实际 GPU 费用节省。当前没有自动停止训练、真实机器人干预、外部通知、
+新的公开部署或许可证修改。
