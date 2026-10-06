@@ -1,232 +1,123 @@
-# RL 训练可靠性与风险回放
+# RL Sentinel
 
-<p align="center">
-  <img src="docs/assets/social-preview.svg" alt="RL 训练可靠性与风险回放" width="100%" />
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sentinel-hero-dark.svg" />
+  <img src="docs/assets/sentinel-hero-light.svg" alt="观察、回放、核验。时间边界将 T 时刻已知的信息与之后才可用的事件分开。" width="100%" />
+</picture>
 
-<p align="center">
-  <a href="https://github.com/Anhao1314/rl-training-risk-replay/actions/workflows/ci.yml"><img alt="Reliability validation" src="https://github.com/Anhao1314/rl-training-risk-replay/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" />
-  <img alt="Release v0.2" src="https://img.shields.io/badge/reliability%20core-v0.2-2563EB" />
-  <img alt="Recommendation only" src="https://img.shields.io/badge/mode-recommendation--only-0F172A" />
-</p>
+**强化学习实验的可靠性与证据层，只提供建议，不自动干预。**
+记录训练观测，重建决策时刻真正可用的信息，再把建议与支持它的证据一起复核。
 
-<p align="center">
-  <strong>给强化学习实验加上一层“时间正确”的可靠性与证据基础设施。</strong><br/>
-  重建决策时刻真正可见的信息，给出只读风险建议，再用最终结果回放这些建议，而不是偷偷读取未来。
-</p>
+<p><code>Python 3.12+</code> · <code>stdlib runtime</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
 
-<p align="center">
-  <a href="README.md">English</a> ·
-  <a href="docs/RELIABILITY_V2.md">协议与迁移</a> ·
-  <a href="docs/VALIDATION_V2_2026-10-06.md">v0.2 实测验收</a> ·
-  <a href="docs/portfolio-validation.md">历史验证</a>
-</p>
+[开始使用](#quick-start) · [实验结果](#results) · [接入训练](#integration) · [文档导航](docs/README.md) · [English](README.md)
 
----
+> RL Sentinel 只输出本地建议，不会自动停止训练。当前实验验证的是受控场景中的工作流程，不是生产环境中的早停效果。
 
-## 为什么要做这个项目
+<a id="quick-start"></a>
+## 先跑一次完整实验
 
-强化学习训练往往在很早的时候就已经出现问题，却要几个小时以后才被人发现。更麻烦的是，事后分析很容易“无意中作弊”：读到了最终 verdict、后来才开始的 run，或者当时尚未到达的数据。
+使用 **Python 3.12+**。严格新核心可直接从仓库运行，无需 GPU、API Key 或第三方运行依赖。
 
-这个项目把 **训练可靠性** 当成一个独立系统问题：
-
-| 时间正确回放 | 决策质量 | 可检查证据 |
-| --- | --- | --- |
-| 用不可变事件，同时检查事件时间和可用时间，构建真正的 as-of 视图。 | 分开计算停止精确率、误停占比、成功样本误杀率、失败召回率、覆盖率和拒绝判断。 | 保存事件流、逐次决策输入、实验协议、环境信息、报告和 SHA-256 清单。 |
-
-当前系统仍然是 **recommendation-only**，不会自动停止训练。
-
-## v0.2 已验证快照
-
-验证日期：**2026-10-06**。下面是本次候选版本实际跑出来的结果，不是永远不会过期的宣传数字。
-
-| 检查 | 实测结果 |
-| --- | --- |
-| Linux 严格新核心 | **62 个测试方法 + 25 个子测试通过**，required strict Pyright 通过 |
-| Windows 严格新核心 | **同一组测试通过**，required strict Pyright 通过 |
-| 历史回归 | Linux **265 项通过** |
-| 未来信息扰动 | **200 / 200** 组未来修改没有改变历史输入哈希和建议 |
-| 受控 RL 实验 | **18 次真实 Q-learning**：6 pass / 12 fail |
-| rules-v2，70% 训练预算 | 抓住 **6 / 12 失败**，误停 **0 / 6 成功**，**1 / 18** 拒绝判断 |
-| 历史 Go2W 数据 | 因旧 schema 缺少 available-at 证据，**严格可回放 run = 0** |
-
-> 受控实验很小。它证明的是回放和证据链能工作，**不是已经证明生产早停有效，更不是 Go2W 泛化结论**。完整记录见 [v0.2 实测验收](docs/VALIDATION_V2_2026-10-06.md)。
-
-## 架构
-
-<p align="center">
-  <img src="docs/assets/replay-pipeline-architecture.svg" alt="RL 训练可靠性 v0.2 架构" width="100%" />
-</p>
-
-严格路径故意保持窄而清楚：
-
-```text
-训练观察器
-    ↓
-不可变 start / sample / finish / label 事件
-    ↓
-SQLite 事务 EventStore
-    ↓
-截止时刻 T 的 as-of 快照
-    ↓
-建议策略
-    ↓
-使用最终结果做 chronological replay
-    ↓
-指标 + 证据 bundle
+<!-- sentinel:quickstart -->
+```bash
+git clone https://github.com/Anhao1314/RL-Sentinel.git
+cd RL-Sentinel
+python -m rl_risk_replay experiment --out artifacts/sentinel-demo
+python -m rl_risk_replay verify --bundle artifacts/sentinel-demo
 ```
+<!-- /sentinel:quickstart -->
 
-历史 CSV 仍保留分析能力，但被明确隔离为 **retrospective-only**。旧 schema 无法证明每个字段当时什么时候真正可用，因此不伪造迁移。
+用浏览器打开 `artifacts/sentinel-demo/report.html`。程序会真实执行 **18 次 Q-learning 训练**，再比较三种建议策略。输出目录必须是新目录，已有证据不会被覆盖。
 
-## 直接跑完整实验
+仓库名称是 **RL-Sentinel**；为保持兼容，Python 模块仍是 **`rl_risk_replay`**。[安装、产物说明与常见问题 →](docs/GETTING_STARTED.zh-CN.md)
 
-使用 Python **3.12+**。严格核心不需要 GPU，也不依赖 pandas、MuJoCo 等第三方运行库。
+## 它可以帮你做什么
+
+**复盘一次训练。** 查看给出建议时已经可用的观测与历史样本，而不是拿最终结果倒推当时的判断。
+
+**比较不同建议策略。** 对同一批运行回放规则、始终继续、始终停止三种策略，同时保留漏检、误停与拒绝判断的情况。
+
+**交付可核验的实验。** 把事件流、决策输入、配置与结果放进同一个证据包，附上文件清单和哈希，便于他人复核。
+
+<a id="time-boundary"></a>
+## 最重要的是这条时间边界
+
+事件发生了，不代表系统当时已经知道。决策之后才生成的报告，即使描述的是更早的训练步数，也不应该影响过去的建议。
+
+RL Sentinel 同时检查 **`event_time` 与 `available_at`**。目标运行的最终结果只用于事后评分，不进入预测输入；可用历史样本在目标启动时冻结。
+
+<details>
+<summary><strong>展开查看：观测 → 决策 → 证据</strong></summary>
+
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/assets/replay-pipeline-mobile.svg" />
+  <img src="docs/assets/replay-pipeline-architecture.svg" alt="观测写入 SQLite，as-of 视图筛选当时可见的输入，策略产生建议。目标运行的结束与标签事件仅在评分侧接入。旧 CSV 独立保留为审计路径。" width="100%" />
+</picture>
+
+这是可信生产者与预测器之间的数据接口边界，不是防恶意代码的沙箱。[事件字段、人工标签优先级与时间语义 →](docs/RELIABILITY_V2.md)
+
+</details>
+
+<a id="results"></a>
+## 实验发现了什么
+
+**已归档验证：2026 年 10 月 6 日，v0.2。** 同一张 4×4 网格，6 个种子、3 种条件，每次训练 4,000 个环境步；最终使用不同随机数流评估 30 回合。这是受控故障注入，不是 Go2W 留出场景基准。[协议与原始证据 →](docs/VALIDATION_V2_2026-10-06.md)
+
+正常学习产生 6 次成功；关闭学习、在 55% 预算处清空策略分别产生 6 次失败。在 **70% 预算检查点**：
+
+| 策略 | 识别失败 | 误停成功运行 | 决策覆盖 |
+| --- | ---: | ---: | ---: |
+| 始终继续 | 0 / 12 | 0 / 6 | 18 / 18 |
+| 始终停止 | 12 / 12 | 6 / 6 | 18 / 18 |
+| **Rules-v2** | **6 / 12** | **0 / 6** | **17 / 18** |
+
+**结论也包括盲区：** rules-v2 识别了 6 次后期策略清空故障，却漏掉全部 6 次关闭学习的失败；另有 1 次拒绝判断。在 30% 和 50% 检查点，没有停止建议。
+
+6 个成功样本中没有误停，**不等于总体误杀率为零**。所有受控结果仍为 `readiness: blocked`，不声称实际节省了算力。
+
+<details>
+<summary><strong>展开查看：验证范围与复现命令</strong></summary>
+
+同一份 v0.2 验收记录中，Linux 和 Windows 分别通过 **62 个核心测试方法 + 25 个子测试**，Linux 另通过 **265 项历史回归**，严格新核心 Pyright 通过。跨平台重复运行不计为更多独立测试。
+
+**200 组未来信息扰动**均未改变历史输入哈希和建议；修改已经可见的信息，两者均改变，作为负对照。这些是约定范围内的测试，不是所有可能输入的形式化证明。
 
 ```bash
 python -m pip install -r requirements-core-dev.txt
-python -m pip install --no-deps -e .
-
-python -m rl_risk_replay experiment --out artifacts/controlled-run
-python -m rl_risk_replay verify --bundle artifacts/controlled-run
-```
-
-然后打开：
-
-```text
-artifacts/controlled-run/report.html
-```
-
-产物包括：
-
-```text
-report.html          可离线打开的报告
-results.json         指标 + 每次决策证据
-events.jsonl         不可变实验事件流
-q_tables.json        最终 Q 表
-protocol.json        受控实验精确协议
-manifest.json        文件、字节数与 SHA-256
-```
-
-如果输出目录已经存在，程序会拒绝覆盖。
-
-## v0.2 的可靠性契约
-
-| 风险 | 新核心怎么处理 |
-| --- | --- |
-| predictor 看见未来 run 或目标最终信息 | 目标输入只允许白名单字段；最终 verdict 和 duration 不进入预测输入。 |
-| run 一结束就假定标签已经存在 | finish 和 label 是不同事件，label 只有在自己的 `available_at` 到达后才可见。 |
-| 迟到遥测 step 很小，被错误放进过去 | 同时检查 `event_time` 和 `available_at`。 |
-| 历史训练成员事后发生变化 | 历史 run 与标签相对于目标开始时刻冻结。 |
-| 缺数据被偷偷当成“健康” | 策略可以 abstain，覆盖率和拒绝判断单独记录。 |
-| “误杀率”到底除什么不清楚 | 分开输出 `stop_precision`、`false_stop_share`、`pass_kill_rate`、`fail_recall`。 |
-| 多文件写到一半形成混合版本 | SQLite 批次要么全部提交，要么全部回滚。 |
-| 报告文件被独立覆盖 | 先暂存，再发布到新目录，并用 manifest 校验。 |
-
-## 受控实验到底发现了什么
-
-实验真实执行 **6 个种子 × 3 种条件 × 4,000 环境步**，都在同一 4×4 网格里。最终标签来自训练结束后的 30 回合评估，并使用不同评估 RNG。
-
-| 条件 | Pass | Fail |
-| --- | ---: | ---: |
-| 正常学习 | 6 | 0 |
-| 关闭学习 | 0 | 6 |
-| 训练到 55% 时清空策略并冻结学习 | 0 | 6 |
-| **合计** | **6** | **12** |
-
-在 70% 预算检查点：
-
-| 策略 | 失败召回 | 误停成功 run | 覆盖 |
-| --- | ---: | ---: | ---: |
-| Always continue | 0 / 12 | 0 / 6 | 18 / 18 |
-| Always stop | 12 / 12 | 6 / 6 | 18 / 18 |
-| **Rules-v2** | **6 / 12** | **0 / 6** | **17 / 18** |
-
-真正有意思的结论不是“零误杀”。成功样本只有 6 个，把 0/6 宣传成总体零误杀属于让统计学提前下班。
-
-有价值的结论是：rules-v2 抓到了 **后期策略被破坏** 的 6 次失败，却完全漏掉了 **从来没有学会** 的另外 6 次失败。这个盲区被原样留下，作为下一轮研究对象，而不是看完答案以后再调阈值。
-
-## 接入一条新的训练任务
-
-初始化事件库：
-
-```bash
-python -m rl_risk_replay init --db artifacts/training.sqlite
-```
-
-把生命周期和观测分开记录：
-
-```bash
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind start --payload '{"task":"go2w-navigation","seed":"1","planned_steps":2000000}'
-
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind sample --payload '{"step":100000,"reward":15.2,"approx_kl":0.02}'
-
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind finish --payload '{"status":"completed"}'
-
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind label --payload '{"verdict":"pass","source":"evaluation"}'
-```
-
-只回放当时真正可见的信息：
-
-```bash
-python -m rl_risk_replay replay \
-  --db artifacts/training.sqlite \
-  --out artifacts/replay-001
-```
-
-训练重启或 step 归零时必须使用新的 run ID。远端 producer 需要可比较的时钟；未来时间事件会被拒绝，不会静默“修正”。
-
-## 仓库导航
-
-| 路径 | 作用 |
-| --- | --- |
-| `rl_risk_replay/` | v0.2 严格核心：事件、回放、指标、存储、报告 |
-| `tests_v2/` | 严格核心、对抗时间泄漏、事务与跨平台测试 |
-| `scripts/validate_reliability_v2.py` | 受控 RL、未来扰动和历史数据审计 |
-| `legacy/` | 冻结的历史回放实现 |
-| `data/datasets/` | 原样保留的历史 CSV |
-| `docs/RELIABILITY_V2.md` | 事件协议、API、迁移与边界 |
-| `docs/VALIDATION_V2_2026-10-06.md` | v0.2 实测证据 |
-
-## 证据边界
-
-v0.2 **已经支持**：
-
-- 已测协议范围内按 available-at 隔离的 as-of 输入；
-- 追加式标签修订和冻结历史成员；
-- 事务存储与可校验证据 bundle；
-- Linux / Windows 严格新核心运行；
-- 可复现的 RL 故障注入受控实验。
-
-v0.2 **尚未证明**：
-
-- 校准后的失败概率；
-- 可以安全自动执行的生产早停；
-- 实际 GPU 成本节省；
-- 跨任务或 Go2W 预测泛化；
-- 面对恶意 producer 的认证型 provenance；
-- 整个历史仓库类型债务清零。
-
-历史外围代码仍有 advisory 类型问题。新核心 strict Pyright 通过，只说明**新核心**通过硬门槛，并不会让旧代码在夜里自动顿悟。
-
-## 复现实测
-
-```bash
 python -m pytest tests_v2/ -q
 python -m pyright --project pyright-core.json
-python scripts/validate_reliability_v2.py --out artifacts/reliability-v2
+python scripts/validate_reliability_v2.py --out artifacts/core-validation
 ```
 
-历史套件：
+完整历史套件还需安装 `requirements-dev.txt`。全仓类型检查仍为非阻断检查，历史债务未清零；严格门槛仅覆盖 `rl_risk_replay/`。
+
+</details>
+
+<a id="integration"></a>
+## 接入你自己的训练观测
+
+在可信的观察回调里使用 `EventStore.record`，分别记录 `start`、步数递增的 `sample`、`finish` 与 `label`。只有实际评估或人工复核产生了标签，才记录它。这是事件 API，不是已经完成的 SB3、ROS 或远端集群集成。
+
+对已经存在的事件库运行：
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest tests/ -q
-python scripts/validate_reliability_v2.py --include-legacy --out artifacts/legacy-validation
+python -m rl_risk_replay replay --db artifacts/training.sqlite --out artifacts/training-review
 ```
 
-精确环境、首轮失败与修复记录、artifact 哈希和声明边界见 [v0.2 实测验收记录](docs/VALIDATION_V2_2026-10-06.md)。
+[接入观察器 →](docs/GETTING_STARTED.zh-CN.md#integration) · [完整事件协议 →](docs/RELIABILITY_V2.md)
+
+<a id="boundaries"></a>
+## 能力边界与旧版本兼容
+
+**严格 v0.2 路径：** 事件校验、按时间筛选输入、明确的决策指标、SQLite 批次事务和可核验的证据包。新规则只覆盖一个子集，不等于旧规则全部迁移，也没有校准失败概率。
+
+**历史路径：** 原 CSV、人工标签和报告保持不变，不推算缺失的可用时间戳。现有历史运行没有直接满足严格回放要求的样本；旧 Python API 保留已知的事后信息泄漏，旧回放 CLI 必须显式使用 `--legacy-retrospective`。
+
+**尚未验证：** 生产环境安全干预、跨任务预测泛化、大规模采集与来源认证。哈希只能核对内容与清单，不能替代签名；可比较的生产者时钟和正确的运行身份仍是前提。
+
+[浏览文档 →](docs/README.md) · [迁移说明与未完成项 →](docs/RELIABILITY_V2.md) · [核心源码 →](rl_risk_replay/)
+
+---
+
+由 [Anhao1314](https://github.com/Anhao1314) 维护。本次更名更新项目品牌，不改变 Python 导入路径、历史证据或许可证状态。

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="264" viewBox="0 0 1120 264" role="img" aria-labelledby="title desc">
+<title id="title">Observe. Replay. Verify.</title><desc id="desc">Conceptual time boundary: only information available at T enters a training recommendation. Not an experimental result.</desc>
+<rect width="1120" height="264" rx="18" fill="#F1F6F3"/>
+<g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif" fill="#172E27">
+<text x="40" y="78" font-size="60" font-weight="700" letter-spacing="-2">Observe.</text>
+<text x="40" y="150" font-size="60" font-weight="700" letter-spacing="-2">Replay.</text>
+<text x="40" y="222" font-size="60" font-weight="700" letter-spacing="-2" fill="#087F6A">Verify.</text>
+<rect x="434" y="34" width="334" height="198" rx="14" fill="#DEEEE5"/>
+<text x="458" y="75" font-size="25" font-weight="600">Available at T</text>
+<path d="M460 152H784" stroke="#087F6A" stroke-width="3"/>
+<path d="M812 152H1056" stroke="#BACBC2" stroke-width="3" stroke-dasharray="6 10"/>
+<g fill="#087F6A"><circle cx="474" cy="152" r="8"/><circle cx="574" cy="152" r="8"/><circle cx="674" cy="152" r="8"/></g>
+<g fill="#F1F6F3" stroke="#BACBC2" stroke-width="3"><circle cx="878" cy="152" r="8"/><circle cx="978" cy="152" r="8"/></g>
+<path d="M800 75V220" stroke="#087F6A" stroke-width="3"/>
+<rect x="778" y="25" width="44" height="44" rx="12" fill="#087F6A"/><text x="800" y="55" text-anchor="middle" font-size="27" font-weight="700" fill="#F1F6F3">T</text>
+<text x="458" y="207" font-size="20" fill="#536D63">Available evidence</text>
+<text x="849" y="207" font-size="20" fill="#536D63">Not yet available</text>
+</g></svg>
