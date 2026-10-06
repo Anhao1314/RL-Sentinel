@@ -1,0 +1,35 @@
+name: Documentation checks
+on:
+  push:
+    branches: [main]
+    paths: ['README*', 'docs/**', 'scripts/check_documentation.py', '.github/workflows/documentation.yml']
+  pull_request:
+    paths: ['README*', 'docs/**', 'scripts/check_documentation.py', '.github/workflows/documentation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  documentation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Links, SVG structure and runnable documentation
+        run: python scripts/check_documentation.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: documentation-review
+          path: |
+            artifacts/documentation-validation/
+            README.md
+            README.zh-CN.md
+            docs/
+            rl_risk_replay/
+            scripts/check_documentation.py
+            AGENTS.md
+            pyproject.toml
+            tests_v2/
+          if-no-files-found: error

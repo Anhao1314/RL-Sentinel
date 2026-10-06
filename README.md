@@ -1,230 +1,123 @@
-# RL Training Reliability & Risk Replay
+# RL Sentinel
 
-<p align="center">
-  <img src="docs/assets/social-preview.svg" alt="RL Training Reliability & Risk Replay" width="100%" />
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sentinel-hero-dark.svg" />
+  <img src="docs/assets/sentinel-hero-light.svg" alt="Observe. Replay. Verify. A time boundary separates information known at T from later events." width="100%" />
+</picture>
 
-<p align="center">
-  <a href="https://github.com/Anhao1314/rl-training-risk-replay/actions/workflows/ci.yml"><img alt="Reliability validation" src="https://github.com/Anhao1314/rl-training-risk-replay/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" />
-  <img alt="Release v0.2" src="https://img.shields.io/badge/reliability%20core-v0.2-2563EB" />
-  <img alt="Recommendation only" src="https://img.shields.io/badge/mode-recommendation--only-0F172A" />
-</p>
+**A recommendation-only reliability layer for reinforcement-learning experiments.**
+Record training observations, reconstruct what was available at a decision point, and review the recommendation alongside its evidence.
 
-<p align="center">
-  <strong>Time-correct replay and evidence infrastructure for reinforcement-learning experiments.</strong><br/>
-  Reconstruct what was actually knowable at decision time, issue recommendation-only risk decisions, and measure them without silently reading the future.
-</p>
+<p><code>Python 3.12+</code> · <code>stdlib runtime</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
 
-<p align="center">
-  <a href="README.zh-CN.md">中文</a> ·
-  <a href="docs/RELIABILITY_V2.md">Protocol & migration</a> ·
-  <a href="docs/VALIDATION_V2_2026-10-06.md">v0.2 validation</a> ·
-  <a href="docs/portfolio-validation.md">Historical validation</a>
-</p>
+[Quick start](#quick-start) · [Results](#results) · [Integration](#integration) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
 
----
+> RL Sentinel produces local recommendations. It does not automatically stop training. The current experiment demonstrates a controlled workflow, not production early-stop effectiveness.
 
-## Why this exists
+<a id="quick-start"></a>
+## Run your first experiment
 
-RL experiments often fail long before anyone notices. More subtly, post-hoc analysis can look excellent simply because the code accidentally saw the final verdict, a later run, or telemetry that was not available yet.
+Use **Python 3.12+**. The strict core runs directly from the checkout, without a GPU, API key or third-party runtime packages.
 
-This project treats **training reliability as a separate systems problem**:
-
-| Time-correct replay | Decision quality | Inspectable evidence |
-| --- | --- | --- |
-| Build an as-of view from immutable events using both event time and availability time. | Separate stop precision, false-stop share, pass-kill rate, failure recall, coverage and abstention. | Publish event streams, exact decision inputs, protocol, environment, reports and SHA-256 manifests. |
-
-The current system is **recommendation-only**. It does not stop training automatically.
-
-## Verified v0.2 snapshot
-
-Validation date: **2026-10-06**. These are measured results for the v0.2 candidate that was merged into `main`, not permanent marketing claims.
-
-| Check | Measured result |
-| --- | --- |
-| Strict core, Linux | **62 test methods + 25 subtests passed**, required strict Pyright passed |
-| Strict core, Windows | **62 test methods + 25 subtests passed**, required strict Pyright passed |
-| Historical regression | **265 tests passed** on Linux |
-| Future-information mutation test | **200 / 200** future mutations left historical input hashes and recommendations unchanged |
-| Controlled RL experiment | **18 actual Q-learning runs**: 6 pass / 12 fail |
-| Rules-v2 at 70% budget | caught **6 / 12 failures**, killed **0 / 6 passes**, abstained on **1 / 18** |
-| Historical Go2W data | **0 runs** qualify for strict replay because legacy rows lack availability-time evidence |
-
-> The controlled experiment is deliberately small. It validates the replay and evidence chain, **not production early-stop effectiveness or Go2W generalization**. Full details: [validation record](docs/VALIDATION_V2_2026-10-06.md).
-
-## Architecture
-
-<p align="center">
-  <img src="docs/assets/replay-pipeline-architecture.svg" alt="RL training reliability v0.2 architecture" width="100%" />
-</p>
-
-The strict path is intentionally narrow:
-
-```text
-training observer
-    ↓
-immutable start / sample / finish / label events
-    ↓
-transactional SQLite EventStore
-    ↓
-as-of snapshot at cutoff T
-    ↓
-recommendation policy
-    ↓
-chronological replay against outcomes
-    ↓
-metrics + evidence bundle
-```
-
-Legacy CSV analysis remains available, but it is isolated as **retrospective-only** because its old schema cannot reconstruct when every field became available.
-
-## Run the complete controlled experiment
-
-Python **3.12+**. No GPU and no third-party runtime dependencies are required for the strict core.
-
+<!-- sentinel:quickstart -->
 ```bash
-python -m pip install -r requirements-core-dev.txt
-python -m pip install --no-deps -e .
-
-python -m rl_risk_replay experiment --out artifacts/controlled-run
-python -m rl_risk_replay verify --bundle artifacts/controlled-run
+git clone https://github.com/Anhao1314/RL-Sentinel.git
+cd RL-Sentinel
+python -m rl_risk_replay experiment --out artifacts/sentinel-demo
+python -m rl_risk_replay verify --bundle artifacts/sentinel-demo
 ```
+<!-- /sentinel:quickstart -->
 
-Open:
+Open `artifacts/sentinel-demo/report.html` in a browser. The command runs **18 actual Q-learning trials**, then compares three recommendation policies. The output directory must be new; existing evidence is never overwritten.
 
-```text
-artifacts/controlled-run/report.html
-```
+The repository name is **RL-Sentinel**. The Python module remains **`rl_risk_replay`** for compatibility. [Installation, output files and troubleshooting →](docs/GETTING_STARTED.md)
 
-The new directory contains:
+## What you can use it for
 
-```text
-report.html          offline human-readable report
-results.json         metrics + per-decision evidence
-events.jsonl         immutable experiment event stream
-q_tables.json        final learned Q tables
-protocol.json        exact controlled-experiment protocol
-manifest.json        members, sizes and SHA-256 hashes
-```
+**Review a training run.** Inspect the observations and historical examples available when a recommendation was made, rather than starting from its eventual outcome.
 
-Existing output directories are rejected rather than overwritten.
+**Compare recommendation policies.** Replay rules, always-continue and always-stop against the same runs. Keep missed failures, false stops and abstentions visible.
 
-## Core reliability contract
+**Share an auditable experiment.** Keep the event stream, decision inputs, configuration and results together in a bundle with a file manifest and hashes.
 
-| Risk | v0.2 behavior |
-| --- | --- |
-| Future runs or final target metadata leak into a predictor | Target inputs use a strict field allowlist; final verdict and duration are excluded. |
-| A label is assumed available when training ends | Finish and label are different events. A label participates only after its own `available_at`. |
-| Late telemetry has an old step number | Both `event_time` and `available_at` are enforced. |
-| Historical membership changes after the fact | Eligible historical runs and labels are frozen relative to the target start. |
-| Missing evidence silently becomes “healthy” | Policies can abstain; coverage and abstention remain explicit. |
-| “False kill rate” hides denominator ambiguity | `stop_precision`, `false_stop_share`, `pass_kill_rate`, and `fail_recall` are separate metrics. |
-| Partial writes create mixed dataset versions | SQLite batches commit atomically or roll back. |
-| Report files can be overwritten independently | Reports are staged, published to a new directory and verified against a manifest. |
+<a id="time-boundary"></a>
+## The boundary that matters
 
-## What the controlled experiment actually found
+An event can happen before it becomes available. A report generated after a decision must not influence that earlier decision, even when it describes an earlier training step.
 
-The experiment executes **6 seeds × 3 conditions × 4,000 environment steps** in the same 4×4 grid world. Final labels come from 30 post-training evaluation episodes using different evaluation RNG.
+RL Sentinel checks **both `event_time` and `available_at`**. Target outcomes are used for scoring, not as predictor inputs. Eligible history is frozen at the target run's start.
 
-| Condition | Pass | Fail |
-| --- | ---: | ---: |
-| Normal learning | 6 | 0 |
-| Learning disabled | 0 | 6 |
-| Policy reset at 55%, then learning frozen | 0 | 6 |
-| **Total** | **6** | **12** |
+<details>
+<summary><strong>See the observation → decision → evidence flow</strong></summary>
 
-At the 70% checkpoint:
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/assets/replay-pipeline-mobile.svg" />
+  <img src="docs/assets/replay-pipeline-architecture.svg" alt="Observations enter SQLite, an as-of view selects visible inputs, and a policy recommends. Target finish and label events join only on the scoring side. Legacy CSVs remain on an audit-only path." width="100%" />
+</picture>
 
-| Policy | Failure recall | Passes killed | Coverage |
+This is an interface boundary for trusted producers and predictors, not a sandbox against malicious code. [Event fields, label precedence and time semantics →](docs/RELIABILITY_V2.md)
+
+</details>
+
+<a id="results"></a>
+## What the experiment found
+
+**Recorded validation: October 6, 2026, v0.2.** Six seeds, three conditions, 4,000 training steps per run, one 4×4 grid. Final evaluation uses 30 episodes with a different random-number stream. This is controlled fault injection, not a held-out Go2W benchmark. [Protocol and original evidence →](docs/VALIDATION_V2_2026-10-06.md)
+
+The normal condition produced 6 passes. Disabling learning and resetting the policy at 55% of the budget produced 6 failures each. At the **70% checkpoint**:
+
+| Policy | Failures identified | Successful runs stopped | Decision coverage |
 | --- | ---: | ---: | ---: |
 | Always continue | 0 / 12 | 0 / 6 | 18 / 18 |
 | Always stop | 12 / 12 | 6 / 6 | 18 / 18 |
 | **Rules-v2** | **6 / 12** | **0 / 6** | **17 / 18** |
 
-The important result is not “zero false kills.” With only six successful samples, that would be a heroic misuse of arithmetic. The useful result is that rules-v2 detected the **late policy-destruction failures** and completely missed the six **never-learned failures**. That blind spot is preserved as a research target rather than tuned away after seeing the answers.
+**The useful finding is also a limitation:** rules-v2 detected the six late policy-reset failures but missed all six disabled-learning failures. It abstained on one run. At 30% and 50%, it stopped none.
 
-## Connect a new training run
+Zero false stops among six successful runs does **not** establish a zero population error rate. All controlled results remain `readiness: blocked`; no realized compute savings are claimed.
 
-Create an event store:
+<details>
+<summary><strong>Validation scope and reproducible checks</strong></summary>
 
-```bash
-python -m rl_risk_replay init --db artifacts/training.sqlite
-```
+The same v0.2 validation record reports **62 core test methods + 25 subtests on each of Linux and Windows**, **265 historical regression tests on Linux**, and passing required strict-core Pyright. Cross-platform repetitions are not additional distinct tests.
 
-Record lifecycle and observations separately:
-
-```bash
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind start --payload '{"task":"go2w-navigation","seed":"1","planned_steps":2000000}'
-
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind sample --payload '{"step":100000,"reward":15.2,"approx_kl":0.02}'
-
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind finish --payload '{"status":"completed"}'
-
-python -m rl_risk_replay record --db artifacts/training.sqlite --run-id run-001 \
-  --kind label --payload '{"verdict":"pass","source":"evaluation"}'
-```
-
-Replay only what was knowable:
+All **200 future-data mutations** preserved historical input hashes and recommendations. Changing already-visible data changed both, providing a negative control. These are scoped tests, not a formal proof of all possible inputs.
 
 ```bash
-python -m rl_risk_replay replay \
-  --db artifacts/training.sqlite \
-  --out artifacts/replay-001
-```
-
-A restarted attempt gets a new run ID. Remote producers need comparable clocks. Future-dated events are rejected rather than “fixed” silently.
-
-## Repository map
-
-| Path | Role |
-| --- | --- |
-| `rl_risk_replay/` | strict v0.2 runtime: events, replay engine, metrics, storage, reporting |
-| `tests_v2/` | strict-core, adversarial, storage and time-isolation tests |
-| `scripts/validate_reliability_v2.py` | controlled RL + future-mutation + legacy-audit validation |
-| `legacy/` | frozen historical replay implementation |
-| `data/datasets/` | preserved historical CSV datasets |
-| `docs/RELIABILITY_V2.md` | event protocol, API, migration and boundaries |
-| `docs/VALIDATION_V2_2026-10-06.md` | measured v0.2 validation evidence |
-
-## Evidence boundaries
-
-What v0.2 **does support**:
-
-- availability-gated as-of inputs within the tested event protocol;
-- append-only label revisions and frozen historical membership;
-- transactional storage and verifiable report bundles;
-- cross-platform strict-core execution;
-- a reproducible controlled RL failure-injection experiment.
-
-What v0.2 **does not establish**:
-
-- calibrated failure probability;
-- production-safe autonomous stopping;
-- realized GPU savings;
-- cross-task or Go2W predictive generalization;
-- authenticated provenance against a malicious producer;
-- zero type debt across the historical repository.
-
-The historical repository still has advisory type findings. Passing strict-core Pyright means the **new core** passed its required gate, not that old code magically achieved enlightenment overnight.
-
-## Reproduce the validation
-
-```bash
+python -m pip install -r requirements-core-dev.txt
 python -m pytest tests_v2/ -q
 python -m pyright --project pyright-core.json
-python scripts/validate_reliability_v2.py --out artifacts/reliability-v2
+python scripts/validate_reliability_v2.py --out artifacts/core-validation
 ```
 
-For the preserved historical suite:
+The full historical suite needs `requirements-dev.txt`. Full-repository typing remains advisory with known debt; the required type gate applies to `rl_risk_replay/`.
+
+</details>
+
+<a id="integration"></a>
+## Bring your own training observations
+
+Use `EventStore.record` in a trusted observer to record `start`, increasing-step `sample`, `finish` and `label` events separately. Record labels only when evaluation or review actually produces them. This is an event API, not a prebuilt SB3, ROS or remote-cluster integration.
+
+For an existing event database:
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest tests/ -q
-python scripts/validate_reliability_v2.py --include-legacy --out artifacts/legacy-validation
+python -m rl_risk_replay replay --db artifacts/training.sqlite --out artifacts/training-review
 ```
 
-See the [full v0.2 validation record](docs/VALIDATION_V2_2026-10-06.md) for exact environments, first-run failures that were fixed, artifact hashes and claim boundaries.
+[Connect an observer →](docs/GETTING_STARTED.md#integration) · [Full event contract →](docs/RELIABILITY_V2.md)
+
+<a id="boundaries"></a>
+## Scope and compatibility
+
+**Strict v0.2 path:** validated events, time-gated inputs, explicit decision metrics, transactional SQLite batches and checksummed evidence bundles. The rule subset is not a complete migration of historical rules; probabilities are not calibrated.
+
+**Historical path:** old CSVs, manual labels and reports are preserved. Their missing availability timestamps are not inferred. No historical run currently qualifies for strict replay; legacy Python APIs retain known retrospective leakage. Old replay CLIs require `--legacy-retrospective`.
+
+**Not established:** production-safe intervention, cross-task predictive generalization, large-scale ingestion or authenticated provenance. Hashes detect changes relative to a manifest; they are not signatures. Comparable producer clocks and valid run identities remain requirements.
+
+[Browse the documentation →](docs/README.md) · [Migration and remaining work →](docs/RELIABILITY_V2.md) · [Source code →](rl_risk_replay/)
+
+---
+
+Maintained by [Anhao1314](https://github.com/Anhao1314). The rename changes the project identity, not the Python import path, historical evidence or licensing status.
