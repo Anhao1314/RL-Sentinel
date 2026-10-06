@@ -130,7 +130,13 @@ def main() -> int:
                                    "q_tables.json", "report.html", "results.json")),
                 "documented experiment output members differ")
         result = json.loads((bundle / "results.json").read_text(encoding="utf-8"))
-        require(result.get("origin") == "controlled", "demo must remain controlled")
+        protocol = json.loads((bundle / "protocol.json").read_text(encoding="utf-8"))
+        event_header = json.loads((bundle / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        require(result.get("protocol") == protocol, "experiment protocol copies differ")
+        require(protocol.get("origin") == event_header.get("origin") == "controlled",
+                "demo protocol and event stream must remain controlled")
+        require(len(result.get("summaries", [])) == 9 and len(result.get("trials", [])) == 18,
+                "default experiment must contain 18 trials and nine policy/checkpoint summaries")
         require(all(s["readiness"] == "blocked" for s in result["summaries"]),
                 "controlled demo must not claim operational readiness")
         run([sys.executable, "-m", "rl_risk_replay", "replay", "--events",
