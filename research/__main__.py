@@ -21,6 +21,7 @@ import pathlib
 from typing import Any
 
 from research.dataset import DEFAULT_CHECKPOINTS, build_dataset
+from research.live import render_live
 from research.registry import append_experiment
 from research.report import render_report
 
@@ -58,6 +59,12 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--dataset", required=True)
     report.add_argument("--out", required=True)
 
+    live = sub.add_parser("live", help="Render a live training page")
+    live.add_argument("--snapshot", required=True)
+    live.add_argument("--out", required=True)
+    live.add_argument("--report-url", default=None)
+    live.add_argument("--refresh", type=int, default=15)
+
     run = sub.add_parser("run", help="Build, render, and register")
     add_build(run)
     run.add_argument("--report-out", required=True)
@@ -80,6 +87,15 @@ def main(argv: list[str] | None = None) -> int:
         record = render_report(
             pathlib.Path(args.dataset).expanduser(),
             pathlib.Path(args.out).expanduser(),
+        )
+        _print(record)
+        return 0
+    if args.command == "live":
+        record = render_live(
+            pathlib.Path(args.snapshot).expanduser(),
+            pathlib.Path(args.out).expanduser(),
+            report_url=args.report_url,
+            refresh=args.refresh,
         )
         _print(record)
         return 0

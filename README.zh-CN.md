@@ -43,11 +43,13 @@ python -m rl_risk_replay verify --bundle artifacts/sentinel-demo
 <a id="research"></a>
 ## 不只是一个面板，而是一层量化研究系统
 
-`research/` 把可靠性核心升级为完整研究流水线：版本化数据集（DuckDB + Parquet）、checkpoint 因子面板、as-of cohort 回测，以及单文件静态报告。当前预览使用 1 条 observed smoke + 独立标注的 legacy/offline cohort，因此 readiness 仍为 `blocked`。
+`research/` 把可靠性核心升级为完整研究流水线：版本化数据集（DuckDB + Parquet）、checkpoint 因子面板、as-of cohort 回测，以及单文件静态报告。当前预览使用 1 条 observed full curriculum run + 独立标注的 legacy/offline cohort，因此 readiness 仍为 `blocked`。
 
 ![RL-Sentinel 研究报告](docs/assets/research-report-preview.png)
 
-[研究系统、因子注册与 18-run 计划 →](docs/RESEARCH_SYSTEM.md)
+只读 **Live** 页面消费训练快照，每 15 秒自动刷新，展示 curriculum 进度、最新 eval、throughput、ETA 与最终 label；它不会混入版本化数据集。
+
+[研究系统、Live 页面、因子注册与 18-run 计划 →](docs/RESEARCH_SYSTEM.md)
 
 <a id="time-boundary"></a>
 ## 最重要的是这条时间边界
@@ -108,7 +110,7 @@ python scripts/validate_reliability_v2.py --out artifacts/core-validation
 
 在可信的观察回调里使用 `EventStore.record`（或 append-only 事件 writer），分别记录 `start`、步数递增的 `sample`、`finish` 与 `label`。只有实际评估或人工复核产生了标签，才记录它。RL-Sentinel 本身提供事件合同与回放核心；SB3/ROS/远端集群等 producer 侧适配器放在各自仓库。
 
-**Go2W producer（第一个接入）。** Go2W 仓库提供 SB3 `Sb3EventCallback`，写入 `progress`、`success_rate`、`segment` 可选字段；严格合同已接受这些任务遥测。真实 Go2W smoke 事件流已完成 ingest 与 replay；多 run 分析仍在进行。[Go2W 系统层 ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
+**Go2W producer（第一个接入）。** Go2W 仓库提供 SB3 `Sb3EventCallback`，写入 `progress`、`success_rate`、`segment` 可选字段；严格合同已接受这些任务遥测。真实 Go2W 三阶段 run 已完成 ingest、证据采集并进入研究报告；多 run 矩阵仍在进行。[Go2W 系统层 ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
 
 对已经存在的事件库运行：
 

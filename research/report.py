@@ -470,7 +470,7 @@ code{font-family:var(--mono);font-size:.92em;background:var(--surface-2);
   <div class="brand">RL-Sentinel Research<small>Training reliability · quant research</small></div>
   <nav class="nav"><a href="#overview">Overview</a><a href="#runs">Runs</a>
     <a href="#factors">Factors</a><a href="#backtest">Backtest</a>
-    <a href="#evidence">Evidence</a></nav>
+    <a href="../live/index.html">Live</a><a href="#evidence">Evidence</a></nav>
 </div></div>
 <div class="wrap">
   <header class="hero" id="overview">

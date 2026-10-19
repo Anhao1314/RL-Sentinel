@@ -13,6 +13,7 @@ import pytest
 from research.backtest import RuleConfig, run_backtest
 from research.dataset import build_dataset, read_dataset
 from research.factors import compute_checkpoint_factors
+from research.live import render_live
 from research.report import render_report
 
 
@@ -170,6 +171,70 @@ def test_backtest_metrics_and_readiness(tmp_path: pathlib.Path) -> None:
     always_stop = summary[summary["policy"] == "always-stop"].iloc[0]
     assert always_stop["true_stops"] == 0
     assert always_stop["false_stops"] == 1
+
+
+def _live_snapshot() -> dict[str, Any]:
+    return {
+        "job_id": "demo-run",
+        "status": "finished",
+        "training_complete": True,
+        "progress": 1.0,
+        "event_progress": 0.45,
+        "current_stage": "stage3",
+        "stages_completed": 3,
+        "stage_count": 3,
+        "current_step": 900000,
+        "planned_steps": 2000000,
+        "throughput_steps_s": 352.0,
+        "eta_human": "complete",
+        "sample_count": 180,
+        "event_count": 183,
+        "latest_eval": {
+            "stage": "stage3", "timesteps": 550000,
+            "success_rate": 1.0, "mean_x": 10.65,
+            "mean_reward": 242.1, "mean_ep_len": 1256,
+        },
+        "recent_evals": [{
+            "stage": "stage3", "timesteps": 550000,
+            "success_rate": 1.0, "mean_x": 10.65,
+            "mean_reward": 242.1, "mean_ep_len": 1256,
+        }],
+        "source": {"commit": "abc123", "dirty": False},
+        "finish_status": "completed",
+        "label": {"verdict": "pass", "source": "evaluation"},
+        "updated_at": "2026-10-19T00:00:00Z",
+    }
+
+
+def test_live_page_renders_finished_state(tmp_path: pathlib.Path) -> None:
+    snapshot = tmp_path / "live.json"
+    snapshot.write_text(json.dumps(_live_snapshot()), encoding="utf-8")
+    out = tmp_path / "live"
+    record = render_live(snapshot, out, report_url="../report/index.html", refresh=15)
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert record["status"] == "finished"
+    assert record["label"] == "pass"
+    assert "Curriculum progress" in page
+    assert "FINAL LABEL" in page
+    assert "PASS" in page
+    assert "event budget" in page
+    assert 'http-equiv="refresh"' in page
+    assert "not versioned evidence" in page
+
+
+def test_live_page_can_disable_refresh(tmp_path: pathlib.Path) -> None:
+    snapshot = tmp_path / "live.json"
+    data = _live_snapshot()
+    data["status"] = "running"
+    data["training_complete"] = False
+    data["progress"] = 0.4
+    data["label"] = None
+    snapshot.write_text(json.dumps(data), encoding="utf-8")
+    out = tmp_path / "live"
+    render_live(snapshot, out, refresh=0)
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert "Budget progress" in page
+    assert 'http-equiv="refresh"' not in page
 
 
 def test_report_is_self_contained(tmp_path: pathlib.Path) -> None:
