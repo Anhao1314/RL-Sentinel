@@ -108,13 +108,27 @@ class Event:
                      "seed": text(payload["seed"], "seed"),
                      "planned_steps": integer(payload["planned_steps"], "planned_steps", 1)}
         elif kind == "sample":
-            allowed = {"step", "reward", "approx_kl", "value_loss", "memory_percent"}
+            # Go2W task extension: progress/success_rate/segment are optional
+            # task telemetry, not calibrated failure probabilities.
+            allowed = {
+                "step", "reward", "approx_kl", "value_loss", "memory_percent",
+                "progress", "success_rate", "segment",
+            }
             if "step" not in payload or not set(payload) <= allowed:
                 raise ContractError("sample payload contains unsupported or missing fields")
             clean["step"] = integer(payload["step"], "step")
             for key in ("reward", "approx_kl", "value_loss", "memory_percent"):
                 if key in payload and payload[key] is not None:
                     clean[key] = number(payload[key], key, None if key == "reward" else 0)
+            if "progress" in payload and payload["progress"] is not None:
+                clean["progress"] = number(payload["progress"], "progress")
+            if "success_rate" in payload and payload["success_rate"] is not None:
+                success_rate = number(payload["success_rate"], "success_rate", 0)
+                if success_rate > 1:
+                    raise ContractError("success_rate must be in [0, 1]")
+                clean["success_rate"] = success_rate
+            if "segment" in payload and payload["segment"] is not None:
+                clean["segment"] = number(payload["segment"], "segment", 0)
             if "memory_percent" in clean and number(clean["memory_percent"], "memory_percent") > 100:
                 raise ContractError("memory_percent must not exceed 100")
         elif kind == "finish":

@@ -31,9 +31,11 @@ python backtest_rules.py --legacy-retrospective --today 2026-09-12 --out artifac
 | 事件 | payload | 约束 |
 | --- | --- | --- |
 | start | task、seed、planned_steps | 每个 run 只能有一次，计划步数必须为正整数。 |
-| sample | step；可选 reward、approx_kl、value_loss、memory_percent | 只允许白名单字段；按事件时间排序后 step 严格递增；采样时汇总同一 step 的指标。 |
+| sample | step；可选 reward、approx_kl、value_loss、memory_percent；Go2W 扩展：progress、success_rate、segment | 只允许白名单字段；按事件时间排序后 step 严格递增；采样时汇总同一 step 的指标。 |
 | finish | status：completed / failed / cancelled | 最多一次；是运行生命周期信息，不自动等于验收失败标签。 |
 | label | verdict：pass / fail / unknown；source：manual / evaluation | 必须在已可见的 finish 之后；同来源同可用时刻的冲突修订拒绝。 |
+
+**Go2W 训练扩展（可选）：** `progress` 是任务进度标量（不是校准概率）；`success_rate` 是 [0, 1] 的批次成功指示；`segment` 是课程阶段索引/均值（≥0）。它们只用于训练过程因子分析，不是最终 label，也不改变 rules-v2 的现有判定。扩展字段仍受同一时间与白名单校验。
 
 `event_time` 是源事件发生时间，`available_at` 是生产者可观察该事件的时间。
 必须满足 `event_time <= available_at`。记录器使用本机当前时间记录可用时间，不根据 step 反推。
