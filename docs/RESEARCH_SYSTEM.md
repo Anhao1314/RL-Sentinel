@@ -194,44 +194,40 @@ python -m research live \
 
 持续刷新时，把两条命令放进 15 秒循环即可；页面自身也会每 15 秒 reload。
 
-## 7. 当前预览状态（2026-10-19）
+## 7. 当前状态（2026-10-19）
 
-- 数据集：`1a4553c8acd7aa8b`，1 个 observed full run（`mseg-events-full-s0b`，label `pass`）+ 48 个 legacy runs
-- observed readiness：`blocked`（1 pass / 0 fail；门槛为 5 pass + 10 fail）
-- legacy cohort：存在历史标签，但 `strict_asof=False`，不计入门槛
-- 报告：`research/reports/go2w-full-s0b/report.html`
+- 数据集：`5fd1ca77bcbf4230`，18 个 observed runs（6 pass / 12 fail）+ 48 个 legacy runs
+- observed readiness：`candidate_for_external_validation`（5 pass + 10 fail 的门槛已满足）
+- 组成：
+  - pass：1 条 full-budget、2 条 short-budget/no-BC pilot、3 条 full-budget seeds 1–3
+  - fail：12 条 zero-S0 消融（seeds 0–5 × 两种预算）
+- 回测：`rules-v2` 在 30% → 2 true stops / 1 false stop / 10 missed；50% 和 70% → 0 stops
+- 因子：最高 IC 约 0.85–0.87，但只区分受控 zero-S0 失败与健康 run
+- 报告：`research/reports/go2w-matrix-2026-10-19/report.html`
 - Live：`research/reports/live/index.html`（只读快照，指向上述静态报告）
 - 预览图：`docs/assets/research-report-preview.png`、`docs/assets/research-live-preview.png`
+- 详细记录：[MATRIX_2026-10-19.md](MATRIX_2026-10-19.md)
 
-这说明研究流水线已跑通，但不构成早停有效性结论。
+这说明数据充分性门槛已通过，但不构成早停有效性结论。
 
-## 8. 下一步：18 条 observed run
+## 8. 18-run observed 矩阵（已完成）
 
-要进入可讨论的策略对照，至少需要：
+矩阵全部使用 multi-segment，因为它是目前唯一接入 v0.2 `start/sample/finish/label` 事件流的 trainer。
 
-```text
-6 pass + 12 fail = 18 observed runs
-```
+pilot 发现短预算和 no-BC 仍能通过验收，因此 fail 组改用 zero-S0 消融：高层接口不变，低层控制器输出零命令。它是受控负样本，不是自然训练失败。
 
-建议矩阵：
+下一步：
 
-- 成功组：multi-segment / junction / high-level-curve × seeds 0,1
-- 失败组：无 BC / 无 pre-brake / 短预算 × seeds 0,1
-- 可选：C++ S0 消融
-
-每条 run 完成后：
-
-1. `tools/win_train.py fetch <job>`
-2. `scripts/collect_run_evidence.py`（Go2W 仓库）
-3. `python -m research build --runs-root <fetched-root> ...`
-4. `python -m research report ...`
-5. 注册 experiment
+1. 给 junction / high-level-curve 接事件 observer，扩展跨任务 cohort。
+2. 用自然失败模式构造负样本，检验因子与规则的外推。
+3. 因子筛选 / FDR、校准与基线模型；按同一协议做 leave-one-future-out。
+4. 每条 run 仍按 `fetch → collect evidence → build → report → registry` 归档。
 
 ## 9. 限制
 
 - 研究层使用 pandas/DuckDB；严格核心仍 stdlib-only。
 - 因子只覆盖事件/评估可见字段；奖励分量、完整轨迹、per-episode stage eval 尚未采集。
 - legacy 数据没有事件时间，不能用于严格 as-of 结论。
-- IC 在小样本下不稳定；当前预览的 IC 多为 N/A。
+- IC 在受控小样本下会偏高；当前高 IC 主要来自 zero-S0 失败模式，不能外推自然失败。
 - 不自动停止训练，不声称生产级早停或真实算力节省。
 - dataset_version 是内容哈希，不是密码学签名。

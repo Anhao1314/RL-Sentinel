@@ -17,7 +17,7 @@ RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息�
 
 ![RL Sentinel 研究报告](docs/assets/research-report-preview.png)
 
-*报告来自当前 Go2W 数据集：1 条 observed run + 48 条 legacy/offline run。Observed readiness 为 `blocked`，报告如实展示，而不是隐藏它。*
+*报告来自当前 Go2W 数据集：18 条 observed run（6 pass / 12 fail）+ 48 条 legacy/offline run。Observed readiness 为 `candidate_for_external_validation`；规则回测仍漏掉大部分失败。*
 
 ## 为什么需要它
 
@@ -118,7 +118,7 @@ demo 会真实执行 18 次 Q-learning 训练，覆盖三种条件，再比较�
 - `always-stop`：每个 checkpoint 都停；
 - `rules-v2`：drawdown ≥ 0.30、KL ≥ 0.10、KL 连续发散 ≥ 3，或 progress slope ≤ 0 且覆盖足够。
 
-操作门槛刻意设得很严：至少 **5 条有标签的 pass run** 和 **10 条 fail run**。未达到之前，readiness 保持 `blocked`。observed cohort 与 legacy cohort 分开报告；legacy 没有事件时间，永远不计入门槛。
+操作门槛刻意设得很严：至少 **5 条有标签的 pass run** 和 **10 条 fail run**。未达到之前，readiness 保持 `blocked`。当前矩阵已满足门槛，readiness 为 `candidate_for_external_validation`；这是数据充分性结果，不代表规则有效。observed cohort 与 legacy cohort 分开报告；legacy 没有事件时间，永远不计入门槛。
 
 ### 报告与 Live 页面
 
@@ -160,11 +160,16 @@ Rules-v2 识别了 6 次后期策略清空失败，却漏掉全部 6 次关闭�
 
 6 个成功样本中没有误停，**不等于**总体误杀率为零。所有受控结果仍为 `readiness: blocked`；不声称实际节省了算力。
 
-### Observed Go2W run
+### Observed Go2W matrix（2026-10-19）
 
-`mseg-events-full-s0b` 完成 3 个 curriculum stage，并通过 20 回合验收：success rate 1.0，mean distance 10.6635，mean episode length 1428，最终 label 为 `pass`。
+当前数据集 `5fd1ca77bcbf4230` 包含 **18 条 observed run（6 pass / 12 fail）** + 48 条 legacy/offline run。Readiness 为 `candidate_for_external_validation`：样本量已经足够进入策略讨论，但还不足以声称生产有效。
 
-当前数据集 `1a4553c8acd7aa8b` 包含 **1 条 observed pass + 48 条 legacy/offline run**。Observed readiness 仍是 `blocked`，因为门槛要求 5 条有标签的 pass run 和 10 条 fail run。这证明流水线端到端可用，不证明因子有效性或早停收益。
+- Pass 组：1 条 full-budget run、2 条意外通过的 short-budget/no-BC pilot，以及 3 条 full-budget seeds。
+- Fail 组：12 条 zero-S0 消融 run。高层接口不变，但低层控制器输出零命令，机器人无法前进。
+
+规则回测如实报告：在 30% checkpoint，`rules-v2` 命中 2 条失败、误停 1 条、漏掉 12 条中的 10 条；在 50% 和 70% checkpoint，没有停止建议。Readiness 门槛只说明样本量足够，不说明规则有效。
+
+最强的 checkpoint 因子 IC 很高（`value_loss_last` 0.87、`kl_last` 0.85、`progress_last` 0.85），但它们区分的是受控 zero-S0 失败模式与健康 run，不能外推到自然训练失败。[矩阵协议与结果 →](docs/MATRIX_2026-10-19.md)
 
 <a id="design-rules"></a>
 ## 设计原则
@@ -217,6 +222,7 @@ python -m pytest tests -q
 - [研究系统](docs/RESEARCH_SYSTEM.md)
 - [v0.2 协议与迁移](docs/RELIABILITY_V2.md)
 - [2026-10-06 验收记录](docs/VALIDATION_V2_2026-10-06.md)
+- [2026-10-19 observed 矩阵](docs/MATRIX_2026-10-19.md)
 - [历史验收与指标审计](docs/portfolio-validation.md)
 - [文档导航](docs/README.md)
 

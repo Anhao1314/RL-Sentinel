@@ -10,7 +10,7 @@ Start with the task you need to complete. Historical records remain separate fro
 | Run an experiment / 跑通实验 | [Getting started](GETTING_STARTED.md) · [中文使用指南](GETTING_STARTED.zh-CN.md) |
 | Run quantitative research / 做量化研究 | [Research system / 研究系统](RESEARCH_SYSTEM.md) |
 | Understand event and replay semantics / 理解事件与回放 | [v0.2 protocol, API and migration / 协议、API 与迁移](RELIABILITY_V2.md) |
-| Inspect measured evidence / 核查实测证据 | [October 6, 2026 validation / 2026-10-06 验收记录](VALIDATION_V2_2026-10-06.md) |
+| Inspect measured evidence / 核查实测证据 | [October 6, 2026 validation / 2026-10-06 验收记录](VALIDATION_V2_2026-10-06.md) · [Observed matrix, 2026-10-19 / 2026-10-19 observed 矩阵](MATRIX_2026-10-19.md) |
 | Read the strict implementation / 阅读严格新核心 | [Source](../rl_risk_replay/) · [Tests](../tests_v2/) |
 | Reproduce older analyses / 复核历史分析 | [Historical validation](portfolio-validation.md) · [Archived implementation](../legacy/) |
 

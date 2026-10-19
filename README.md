@@ -17,7 +17,7 @@ RL Sentinel records what a reinforcement-learning run actually knew at each chec
 
 ![RL Sentinel research report](docs/assets/research-report-preview.png)
 
-*Research note generated from the current Go2W dataset: one observed run plus 48 legacy/offline runs. Observed readiness is `blocked`; the report shows it rather than hiding it.*
+*Research note generated from the current Go2W dataset: 18 observed runs (6 pass / 12 fail) plus 48 legacy/offline runs. Observed readiness is `candidate_for_external_validation`; the rule backtest still misses most failures.*
 
 ## Why this exists
 
@@ -116,7 +116,7 @@ The label is never an input. Factor coverage and Spearman IC are reported only w
 - `always-stop` — stop at every checkpoint.
 - `rules-v2` — drawdown ≥ 0.30, KL ≥ 0.10, KL-divergent streak ≥ 3, or progress slope ≤ 0 with sufficient coverage.
 
-The operational gate is deliberately strict: at least **5 passing** and **10 failing** labeled runs. Until then, readiness stays `blocked`. The observed and legacy cohorts are reported separately; legacy rows have no event-time and never count toward the gate.
+The operational gate is deliberately strict: at least **5 passing** and **10 failing** labeled runs. Until then, readiness stays `blocked`. The current matrix meets the gate, so readiness is `candidate_for_external_validation`; that is a data-sufficiency result, not a claim that the rule works. The observed and legacy cohorts are reported separately; legacy rows have no event-time and never count toward the gate.
 
 ### Report and live page
 
@@ -158,11 +158,16 @@ Rules-v2 detected the six late policy-reset failures and missed all six disabled
 
 Zero false stops among six successful runs does **not** establish a zero population error rate. All controlled results remain `readiness: blocked`; no realized compute savings are claimed.
 
-### Observed Go2W run
+### Observed Go2W matrix (2026-10-19)
 
-`mseg-events-full-s0b` completed all three curriculum stages and passed 20 acceptance episodes: success rate 1.0, mean distance 10.6635, mean episode length 1428, final label `pass`.
+The current dataset `5fd1ca77bcbf4230` contains **18 observed runs (6 pass / 12 fail)** plus 48 legacy/offline runs. Readiness is `candidate_for_external_validation`: the cohort is now large enough for the gate, but not enough to claim operational effectiveness.
 
-The current dataset `1a4553c8acd7aa8b` contains **1 observed pass + 48 legacy/offline runs**. Observed readiness is still `blocked`, because the gate requires 5 passes and 10 failures. This proves the pipeline end to end; it does not establish factor efficacy or early-stop value.
+- Pass group: one full-budget run, two short-budget/no-BC pilots that unexpectedly passed, and three full-budget seeds.
+- Fail group: twelve zero-S0 ablation runs. The high-level interface is unchanged, but the low-level controller emits zero commands, so the robot cannot make progress.
+
+The rule backtest is reported as-is. At the 30% checkpoint, `rules-v2` made 2 true stops, 1 false stop and missed 10 of 12 failures. At 50% and 70%, it stopped nothing. The readiness gate is a data-sufficiency gate, not evidence that the rule works.
+
+Top checkpoint factor ICs are high (`value_loss_last` 0.87, `kl_last` 0.85, `progress_last` 0.85), but they separate a controlled zero-S0 failure mode from healthy runs. They are not evidence of generalization to natural training failures. [Matrix protocol and results →](docs/MATRIX_2026-10-19.md)
 
 ## Design rules
 
@@ -211,6 +216,7 @@ The strict-core type gate covers `rl_risk_replay/`. The research layer and histo
 - [Research system](docs/RESEARCH_SYSTEM.md)
 - [v0.2 protocol and migration](docs/RELIABILITY_V2.md)
 - [Validation record, 2026-10-06](docs/VALIDATION_V2_2026-10-06.md)
+- [Observed matrix, 2026-10-19](docs/MATRIX_2026-10-19.md)
 - [Historical validation and metric audit](docs/portfolio-validation.md)
 - [Documentation index](docs/README.md)
 
