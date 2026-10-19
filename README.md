@@ -97,7 +97,9 @@ The full historical suite needs `requirements-dev.txt`. Full-repository typing r
 <a id="integration"></a>
 ## Bring your own training observations
 
-Use `EventStore.record` in a trusted observer to record `start`, increasing-step `sample`, `finish` and `label` events separately. Record labels only when evaluation or review actually produces them. This is an event API, not a prebuilt SB3, ROS or remote-cluster integration.
+Use `EventStore.record` (or an append-only event writer) in a trusted observer to record `start`, increasing-step `sample`, `finish` and `label` events separately. Record labels only when evaluation or review actually produces them. RL-Sentinel itself ships the event contract and replay core; producer-side SB3/ROS/remote-cluster adapters live in their own repositories.
+
+**Go2W producer (first integration).** The Go2W repository ships an SB3 `Sb3EventCallback` that emits this stream with optional `progress`, `success_rate`, and `segment`. The strict contract accepts these as task telemetry. A real Go2W smoke stream has been ingested and replayed; full multi-run analysis is still in progress. [Go2W system layer ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
 
 For an existing event database:
 
@@ -120,4 +122,4 @@ python -m rl_risk_replay replay --db artifacts/training.sqlite --out artifacts/t
 
 ---
 
-Maintained by [Anhao1314](https://github.com/Anhao1314). The rename changes the project identity, not the Python import path, historical evidence or licensing status.
+Maintained by [Anhao1314](https://github.com/Anhao1314) and [Claude-Anhao](https://github.com/Claude-Anhao). The rename changes the project identity, not the Python import path, historical evidence or licensing status.

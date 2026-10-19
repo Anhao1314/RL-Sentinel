@@ -97,7 +97,9 @@ python scripts/validate_reliability_v2.py --out artifacts/core-validation
 <a id="integration"></a>
 ## 接入你自己的训练观测
 
-在可信的观察回调里使用 `EventStore.record`，分别记录 `start`、步数递增的 `sample`、`finish` 与 `label`。只有实际评估或人工复核产生了标签，才记录它。这是事件 API，不是已经完成的 SB3、ROS 或远端集群集成。
+在可信的观察回调里使用 `EventStore.record`（或 append-only 事件 writer），分别记录 `start`、步数递增的 `sample`、`finish` 与 `label`。只有实际评估或人工复核产生了标签，才记录它。RL-Sentinel 本身提供事件合同与回放核心；SB3/ROS/远端集群等 producer 侧适配器放在各自仓库。
+
+**Go2W producer（第一个接入）。** Go2W 仓库提供 SB3 `Sb3EventCallback`，写入 `progress`、`success_rate`、`segment` 可选字段；严格合同已接受这些任务遥测。真实 Go2W smoke 事件流已完成 ingest 与 replay；多 run 分析仍在进行。[Go2W 系统层 ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
 
 对已经存在的事件库运行：
 
@@ -120,4 +122,4 @@ python -m rl_risk_replay replay --db artifacts/training.sqlite --out artifacts/t
 
 ---
 
-由 [Anhao1314](https://github.com/Anhao1314) 维护。本次更名更新项目品牌，不改变 Python 导入路径、历史证据或许可证状态。
+由 [Anhao1314](https://github.com/Anhao1314) 与 [Claude-Anhao](https://github.com/Claude-Anhao) 维护。本次更名更新项目品牌，不改变 Python 导入路径、历史证据或许可证状态。
