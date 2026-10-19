@@ -86,6 +86,27 @@ class EventContractTest(unittest.TestCase):
         with self.assertRaises(ContractError):
             decode_events('{"schema_version":2,"origin":"synthetic","other":1}\n')
 
+    def test_go2w_task_extension_fields(self):
+        event = make_event(
+            "go2w-sample", "go2w-run", "sample", 110, 110,
+            {"step": 10, "reward": 1.0, "progress": 3.2,
+             "success_rate": 0.5, "segment": 1.0},
+        )
+        self.assertEqual(event.payload()["progress"], 3.2)
+        self.assertEqual(event.payload()["success_rate"], 0.5)
+        self.assertEqual(event.payload()["segment"], 1.0)
+        self.assertEqual(Event.from_dict(event.to_dict()), event)
+
+    def test_go2w_invalid_extension_fields_rejected(self):
+        for payload in (
+            {"step": 1, "success_rate": 1.5},
+            {"step": 1, "success_rate": -0.1},
+            {"step": 1, "segment": -1},
+            {"step": 1, "progress": float("nan")},
+        ):
+            with self.subTest(payload=payload), self.assertRaises(ContractError):
+                make_event("bad-extension", "go2w-run", "sample", 10, 10, payload)
+
     def test_ids_must_be_unique(self):
         events = run_events()
         with self.assertRaises(ContractError):
