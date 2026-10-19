@@ -5,19 +5,64 @@
   <img src="docs/assets/sentinel-hero-light.svg" alt="Observe. Replay. Verify. A time boundary separates information known at T from later events." width="100%" />
 </picture>
 
-**A recommendation-only reliability layer for reinforcement-learning experiments.**
-Record training observations, reconstruct what was available at a decision point, and review the recommendation alongside its evidence.
+**Training reliability, measured like quantitative research.**
 
-<p><code>Python 3.12+</code> · <code>stdlib runtime</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
+RL Sentinel records what a reinforcement-learning run actually knew at each checkpoint, turns the record into a versioned research dataset, and reviews early-stop recommendations against the evidence available at the time.
 
-[Quick start](#quick-start) · [Results](#results) · [Integration](#integration) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
+<p><code>Python 3.12+</code> · <code>stdlib strict core</code> · <code>DuckDB + Parquet research layer</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
 
-> RL Sentinel produces local recommendations. It does not automatically stop training. The current experiment demonstrates a controlled workflow, not production early-stop effectiveness.
+[Quick start](#quick-start) · [Research system](#research-system) · [Live training](#live-training) · [Evidence](#evidence) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
+
+> RL Sentinel produces local recommendations only. It does not stop training automatically. The controlled experiment demonstrates a workflow, not production early-stop effectiveness.
+
+![RL Sentinel research report](docs/assets/research-report-preview.png)
+
+*Research note generated from the current Go2W dataset: one observed run plus 48 legacy/offline runs. Observed readiness is `blocked`; the report shows it rather than hiding it.*
+
+## Why this exists
+
+Most training dashboards answer a retrospective question: *what happened?* RL Sentinel answers a point-in-time question: **what was knowable at checkpoint T, and what decision did that justify?**
+
+That distinction matters because early stopping is easy to get right with hindsight and hard to get right online. A run that eventually fails may look healthy at 50%; a run that eventually passes may have a temporary drawdown. The system therefore separates:
+
+- **observed** runs with event-level timestamps, from
+- **legacy/offline** runs without `available_at`, which never enter the operational gate.
+
+Labels are used for scoring only. They are never factor inputs.
+
+## What it does
+
+| Layer | Responsibility | Main artifacts |
+| --- | --- | --- |
+| **Strict core** (`rl_risk_replay/`) | Event contract, as-of replay, decision policies, evidence bundles. Stdlib only. | SQLite, JSON, self-contained HTML |
+| **Research layer** (`research/`) | Versioned dataset, checkpoint factors, cohort backtest, static research note, live page. | Parquet, DuckDB, HTML |
+| **Producer adapters** | SB3 callback and Go2W run output. | `events.jsonl`, snapshot JSON |
+| **Historical path** (`legacy/` and root modules) | Older CSV-based analyses, preserved for audit. | CSV, Markdown |
+
+## Architecture
+
+```text
+training run
+  events.jsonl + eval logs + acceptance summary + job spec
+        │
+        ├── rl_risk_replay/         strict event contract, as-of replay, evidence
+        │
+        └── research/
+              dataset.py            versioned runs / events / labels / factors
+                    │
+              factors.py            24 checkpoint factors at 30 / 50 / 70 %
+                    │
+              backtest.py           rules-v2 vs always-continue / always-stop
+                    │
+              report.py             static research note
+                    │
+              live.py               read-only training snapshot page
+```
+
+The strict core has no third-party runtime dependencies. The research layer uses DuckDB, pandas, PyArrow, NumPy and SciPy; the two are intentionally separate.
 
 <a id="quick-start"></a>
-## Run your first experiment
-
-Use **Python 3.12+**. The strict core runs directly from the checkout, without a GPU, API key or third-party runtime packages.
+## Quick start
 
 <!-- sentinel:quickstart -->
 ```bash
@@ -28,54 +73,80 @@ python -m rl_risk_replay verify --bundle artifacts/sentinel-demo
 ```
 <!-- /sentinel:quickstart -->
 
-Open `artifacts/sentinel-demo/report.html` in a browser. The command runs **18 actual Q-learning trials**, then compares three recommendation policies. The output directory must be new; existing evidence is never overwritten.
+The demo runs 18 Q-learning trials under three conditions and compares three recommendation policies. Open `artifacts/sentinel-demo/report.html` in a browser. The output directory must be new; existing evidence is never overwritten.
 
-The repository name is **RL-Sentinel**. The Python module remains **`rl_risk_replay`** for compatibility. [Installation, output files and troubleshooting →](docs/GETTING_STARTED.md)
+Use Python 3.12+. The strict core needs no GPU, API key or third-party runtime package. The repository and display name are **RL Sentinel**; the Python module remains `rl_risk_replay` for compatibility.
 
-## What you can use it for
+<a id="research-system"></a>
+## Research system
 
-**Review a training run.** Inspect the observations and historical examples available when a recommendation was made, rather than starting from its eventual outcome.
+The research layer turns runs into a reproducible pipeline:
 
-**Compare recommendation policies.** Replay rules, always-continue and always-stop against the same runs. Keep missed failures, false stops and abstentions visible.
+```text
+versioned dataset → checkpoint factor panel → as-of cohort backtest → static report
+```
 
-**Share an auditable experiment.** Keep the event stream, decision inputs, configuration and results together in a bundle with a file manifest and hashes.
+### Versioned dataset
 
-<a id="research"></a>
-## A research layer, not just a dashboard
+`research/dataset.py` writes `runs`, `events`, `eval_points`, `labels`, `factor_panel`, `factor_summary` and `factor_registry` as Parquet, plus `research.duckdb` and `manifest.json`.
 
-`research/` upgrades the reliability core into a quantitative research workflow: versioned datasets (DuckDB + Parquet), checkpoint factor panels, as-of cohort backtests, and a self-contained static report. The current preview uses one observed full curriculum run plus a separately labelled legacy/offline cohort, so its readiness remains `blocked`.
+`dataset_version` is a content hash over run inputs, labels, factor version, checkpoints and research source. Rebuilding the same inputs reuses the same version; existing versions are not overwritten.
 
-![RL-Sentinel research report](docs/assets/research-report-preview.png)
+### Factor panel
 
-A read-only **Live** page consumes a training snapshot, auto-refreshes every 15 seconds, and shows curriculum progress, latest eval, throughput, ETA and the final label. It is never merged into the versioned dataset.
+At 30%, 50% and 70% of each run's budget, the panel computes 24 factors using only samples with `step <= checkpoint_step`:
 
-[Research system, live page, factor registry and 18-run plan →](docs/RESEARCH_SYSTEM.md)
+| Category | Factors |
+| --- | --- |
+| Convergence | reward_last, reward_peak, reward_drawdown, reward_slope, reward_neg_ratio |
+| Stability | reward_std_recent |
+| Health | kl_last, kl_mean_recent, kl_max_recent, kl_divergent_streak, value_loss_last, value_loss_slope |
+| Progress | progress_last, progress_slope, step_coverage |
+| Execution | success_rate_last, success_rate_slope, segment_last, segment_changes |
+| Coverage | sample_count |
+| Evaluation | eval_success_rate_last, eval_success_rate_slope, eval_mean_reward_last, eval_mean_x_last |
 
-<a id="time-boundary"></a>
-## The boundary that matters
+The label is never an input. Factor coverage and Spearman IC are reported only when the sample supports them; otherwise the result is `N/A`, not zero.
 
-An event can happen before it becomes available. A report generated after a decision must not influence that earlier decision, even when it describes an earlier training step.
+### As-of backtest
 
-RL Sentinel checks **both `event_time` and `available_at`**. Target outcomes are used for scoring, not as predictor inputs. Eligible history is frozen at the target run's start.
+`research/backtest.py` replays three policies at each checkpoint:
 
-<details>
-<summary><strong>See the observation → decision → evidence flow</strong></summary>
+- `always-continue` — never stop.
+- `always-stop` — stop at every checkpoint.
+- `rules-v2` — drawdown ≥ 0.30, KL ≥ 0.10, KL-divergent streak ≥ 3, or progress slope ≤ 0 with sufficient coverage.
 
-<picture>
-  <source media="(max-width: 600px)" srcset="docs/assets/replay-pipeline-mobile.svg" />
-  <img src="docs/assets/replay-pipeline-architecture.svg" alt="Observations enter SQLite, an as-of view selects visible inputs, and a policy recommends. Target finish and label events join only on the scoring side. Legacy CSVs remain on an audit-only path." width="100%" />
-</picture>
+The operational gate is deliberately strict: at least **5 passing** and **10 failing** labeled runs. Until then, readiness stays `blocked`. The observed and legacy cohorts are reported separately; legacy rows have no event-time and never count toward the gate.
 
-This is an interface boundary for trusted producers and predictors, not a sandbox against malicious code. [Event fields, label precedence and time semantics →](docs/RELIABILITY_V2.md)
+### Report and live page
 
-</details>
+`research/report.py` renders a self-contained HTML research note in a warm, Claude Code-inspired visual language: run explorer, learning signal, factor lab, backtest, readiness and evidence. No external scripts, fonts or images.
 
-<a id="results"></a>
-## What the experiment found
+`research/live.py` renders a read-only page from a training snapshot. It refreshes every 15 seconds and shows curriculum progress, event-budget coverage, stage status, latest eval, throughput, ETA and the final label.
 
-**Recorded validation: October 6, 2026, v0.2.** Six seeds, three conditions, 4,000 training steps per run, one 4×4 grid. Final evaluation uses 30 episodes with a different random-number stream. This is controlled fault injection, not a held-out Go2W benchmark. [Protocol and original evidence →](docs/VALIDATION_V2_2026-10-06.md)
+<a id="live-training"></a>
+## Live training integration
 
-The normal condition produced 6 passes. Disabling learning and resetting the policy at 55% of the budget produced 6 failures each. At the **70% checkpoint**:
+The first producer is the Go2W wheeled quadruped in the MoRA-Train project. A training run writes `events.jsonl`; a Windows-side job runner can return a read-only snapshot without touching the run:
+
+```text
+Windows run directory
+  → win_job_runner.py snapshot
+  → snapshot JSON
+  → research/live.py
+  → research/reports/live/index.html
+```
+
+![RL Sentinel live training page](docs/assets/research-live-preview.png)
+
+*The live page is diagnostic, not evidence. It never executes stop, tune or resize actions. The fetched run and its SHA-256 manifest remain authoritative.*
+
+<a id="evidence"></a>
+## Evidence
+
+### Controlled fault injection (v0.2)
+
+Six seeds, three conditions, 4,000 training steps per run, one 4×4 grid. The normal condition produced 6 passes; disabling learning and resetting the policy at 55% of the budget produced 6 failures each. At the 70% checkpoint:
 
 | Policy | Failures identified | Successful runs stopped | Decision coverage |
 | --- | ---: | ---: | ---: |
@@ -83,54 +154,72 @@ The normal condition produced 6 passes. Disabling learning and resetting the pol
 | Always stop | 12 / 12 | 6 / 6 | 18 / 18 |
 | **Rules-v2** | **6 / 12** | **0 / 6** | **17 / 18** |
 
-**The useful finding is also a limitation:** rules-v2 detected the six late policy-reset failures but missed all six disabled-learning failures. It abstained on one run. At 30% and 50%, it stopped none.
+Rules-v2 detected the six late policy-reset failures and missed all six disabled-learning failures; it abstained once. At 30% and 50%, it stopped none.
 
 Zero false stops among six successful runs does **not** establish a zero population error rate. All controlled results remain `readiness: blocked`; no realized compute savings are claimed.
 
-<details>
-<summary><strong>Validation scope and reproducible checks</strong></summary>
+### Observed Go2W run
 
-The same v0.2 validation record reports **62 core test methods + 25 subtests on each of Linux and Windows**, **265 historical regression tests on Linux**, and passing required strict-core Pyright. Cross-platform repetitions are not additional distinct tests.
+`mseg-events-full-s0b` completed all three curriculum stages and passed 20 acceptance episodes: success rate 1.0, mean distance 10.6635, mean episode length 1428, final label `pass`.
 
-All **200 future-data mutations** preserved historical input hashes and recommendations. Changing already-visible data changed both, providing a negative control. These are scoped tests, not a formal proof of all possible inputs.
+The current dataset `1a4553c8acd7aa8b` contains **1 observed pass + 48 legacy/offline runs**. Observed readiness is still `blocked`, because the gate requires 5 passes and 10 failures. This proves the pipeline end to end; it does not establish factor efficacy or early-stop value.
+
+## Design rules
+
+1. **The time boundary is part of the data.** An event exists only when it is both recorded (`event_time`) and available (`available_at`).
+2. **Labels score decisions; they do not feed them.** The target run's outcome never enters its own predictor inputs.
+3. **Cohorts are not mixed.** Observed runs with event-time and legacy/offline runs without it are reported separately.
+4. **Missing time is not invented.** Historical CSVs without availability timestamps stay offline.
+5. **`N/A` is not zero.** A missing denominator is displayed as missing.
+6. **Recommendations only.** No automatic stopping, tuning or resizing.
+7. **Evidence is content-addressed.** SHA-256 manifests detect change; they are not signatures.
+
+## Development
 
 ```bash
+# strict core
 python -m pip install -r requirements-core-dev.txt
-python -m pytest tests_v2/ -q
+python -m pytest tests_v2 -q
 python -m pyright --project pyright-core.json
-python scripts/validate_reliability_v2.py --out artifacts/core-validation
+
+# research layer
+python -m pip install -r requirements-research.txt
+python -m pytest tests_research -q
+
+# historical regression
+python -m pip install -r requirements-dev.txt
+python -m pytest tests -q
 ```
 
-The full historical suite needs `requirements-dev.txt`. Full-repository typing remains advisory with known debt; the required type gate applies to `rl_risk_replay/`.
+The strict-core type gate covers `rl_risk_replay/`. The research layer and historical modules are not part of that required gate.
 
-</details>
+## Repository map
 
-<a id="integration"></a>
-## Bring your own training observations
+| Path | Contents |
+| --- | --- |
+| `rl_risk_replay/` | Strict event contract, as-of replay, policies, evidence bundles |
+| `research/` | Dataset, factors, backtest, static report, live page |
+| `tests_v2/` | Strict-core unit and adversarial tests |
+| `tests_research/` | Dataset, factor, backtest and report tests |
+| `docs/` | Protocol, research system, validation records, getting started |
+| `legacy/` | Archived CSV-based analysis path |
+| root modules | Historical quantitative analysis and dashboard |
 
-Use `EventStore.record` (or an append-only event writer) in a trusted observer to record `start`, increasing-step `sample`, `finish` and `label` events separately. Record labels only when evaluation or review actually produces them. RL-Sentinel itself ships the event contract and replay core; producer-side SB3/ROS/remote-cluster adapters live in their own repositories.
+## Documentation
 
-**Go2W producer (first integration).** The Go2W repository ships an SB3 `Sb3EventCallback` that emits this stream with optional `progress`, `success_rate`, and `segment`. The strict contract accepts these as task telemetry. A real three-stage Go2W run has been ingested, evidence-collected and rendered in the research report; the multi-run matrix is still in progress. [Go2W system layer ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
+- [Getting started](docs/GETTING_STARTED.md) · [中文使用指南](docs/GETTING_STARTED.zh-CN.md)
+- [Research system](docs/RESEARCH_SYSTEM.md)
+- [v0.2 protocol and migration](docs/RELIABILITY_V2.md)
+- [Validation record, 2026-10-06](docs/VALIDATION_V2_2026-10-06.md)
+- [Historical validation and metric audit](docs/portfolio-validation.md)
+- [Documentation index](docs/README.md)
 
-For an existing event database:
+## Scope
 
-```bash
-python -m rl_risk_replay replay --db artifacts/training.sqlite --out artifacts/training-review
-```
+**Established:** the event contract, time-gated replay, explicit decision metrics, versioned research datasets, checkpoint factors, readiness-gated backtests and checksummed evidence bundles.
 
-[Connect an observer →](docs/GETTING_STARTED.md#integration) · [Full event contract →](docs/RELIABILITY_V2.md)
-
-<a id="boundaries"></a>
-## Scope and compatibility
-
-**Strict v0.2 path:** validated events, time-gated inputs, explicit decision metrics, transactional SQLite batches and checksummed evidence bundles. The rule subset is not a complete migration of historical rules; probabilities are not calibrated.
-
-**Historical path:** old CSVs, manual labels and reports are preserved. Their missing availability timestamps are not inferred. No historical run currently qualifies for strict replay; legacy Python APIs retain known retrospective leakage. Old replay CLIs require `--legacy-retrospective`.
-
-**Not established:** production-safe intervention, cross-task predictive generalization, large-scale ingestion or authenticated provenance. Hashes detect changes relative to a manifest; they are not signatures. Comparable producer clocks and valid run identities remain requirements.
-
-[Browse the documentation →](docs/README.md) · [Migration and remaining work →](docs/RELIABILITY_V2.md) · [Source code →](rl_risk_replay/)
+**Not established:** production-safe intervention, cross-task predictive generalization, large-scale ingestion, authenticated provenance, or realized compute savings. Hashes are integrity checks, not signatures; producer clocks and valid run identities remain requirements.
 
 ---
 
-Maintained by [Anhao1314](https://github.com/Anhao1314) and [Claude-Anhao](https://github.com/Claude-Anhao). The rename changes the project identity, not the Python import path, historical evidence or licensing status.
+Maintained by [Anhao1314](https://github.com/Anhao1314) and [Claude-Anhao](https://github.com/Claude-Anhao).
