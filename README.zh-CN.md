@@ -2,22 +2,69 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sentinel-hero-dark.svg" />
-  <img src="docs/assets/sentinel-hero-light.svg" alt="观察、回放、核验。时间边界将 T 时刻已知的信息与之后才可用的事件分开。" width="100%" />
+  <img src="docs/assets/sentinel-hero-light.svg" alt="观察、回放、核验。时间边界把 T 时刻已知的信息与之后才可用的事件分开。" width="100%" />
 </picture>
 
-**强化学习实验的可靠性与证据层，只提供建议，不自动干预。**
-记录训练观测，重建决策时刻真正可用的信息，再把建议与支持它的证据一起复核。
+**训练可靠性，像量化研究一样被测量。**
 
-<p><code>Python 3.12+</code> · <code>stdlib runtime</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
+RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息，把这段记录变成可版本化的研究数据集，再用当时可用的证据复核早停建议。
 
-[开始使用](#quick-start) · [实验结果](#results) · [接入训练](#integration) · [文档导航](docs/README.md) · [English](README.md)
+<p><code>Python 3.12+</code> · <code>严格核心零第三方依赖</code> · <code>DuckDB + Parquet 研究层</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
 
-> RL Sentinel 只输出本地建议，不会自动停止训练。当前实验验证的是受控场景中的工作流程，不是生产环境中的早停效果。
+[快速开始](#quick-start) · [研究系统](#research-system) · [实时训练](#live-training) · [证据](#evidence) · [文档导航](docs/README.md) · [English](README.md)
+
+> 只输出本地建议，不自动停止训练。受控实验证明的是工作流，不是生产环境的早停效果。
+
+![RL Sentinel 研究报告](docs/assets/research-report-preview.png)
+
+*报告来自当前 Go2W 数据集：1 条 observed run + 48 条 legacy/offline run。Observed readiness 为 `blocked`，报告如实展示，而不是隐藏它。*
+
+## 为什么需要它
+
+多数训练面板回答的是事后问题：*发生了什么？* RL Sentinel 回答的是一个时点问题：**在 checkpoint T，我们究竟知道什么？基于这些信息，什么决策是合理的？**
+
+这个区别很重要：早停用后见之明很容易做对，在线做对却很难。一个最终失败的 run 在 50% 时可能看起来很健康；一个最终通过的 run 也可能经历暂时回撤。因此系统严格区分：
+
+- 有事件级时间戳的 **observed** run；
+- 没有 `available_at` 的 **legacy/offline** run，永远不计入操作门槛。
+
+标签只用于评分，不作为因子输入。
+
+<a id="what-it-does"></a>
+## 它包含什么
+
+| 层 | 职责 | 主要产物 |
+| --- | --- | --- |
+| **严格核心**（`rl_risk_replay/`） | 事件合同、as-of 回放、决策策略、证据包。仅使用标准库。 | SQLite、JSON、单文件 HTML |
+| **研究层**（`research/`） | 版本化数据集、checkpoint 因子、cohort 回测、静态研究报告、Live 页面。 | Parquet、DuckDB、HTML |
+| **生产者适配** | SB3 callback 与 Go2W run 输出。 | `events.jsonl`、快照 JSON |
+| **历史路径**（`legacy/` 与根目录模块） | 旧的 CSV 分析流程，保留用于审计。 | CSV、Markdown |
+
+<a id="architecture"></a>
+## 架构
+
+```text
+training run
+  events.jsonl + eval logs + acceptance summary + job spec
+        │
+        ├── rl_risk_replay/         strict event contract, as-of replay, evidence
+        │
+        └── research/
+              dataset.py            versioned runs / events / labels / factors
+                    │
+              factors.py            24 checkpoint factors at 30 / 50 / 70 %
+                    │
+              backtest.py           rules-v2 vs always-continue / always-stop
+                    │
+              report.py             static research note
+                    │
+              live.py               read-only training snapshot page
+```
+
+严格核心没有第三方运行时依赖；研究层使用 DuckDB、pandas、PyArrow、NumPy 和 SciPy。两层有意分开：审计级核心不引入研究依赖，研究层也不把宽松假设写回核心。
 
 <a id="quick-start"></a>
-## 先跑一次完整实验
-
-使用 **Python 3.12+**。严格新核心可直接从仓库运行，无需 GPU、API Key 或第三方运行依赖。
+## 快速开始
 
 <!-- sentinel:quickstart -->
 ```bash
@@ -28,109 +75,158 @@ python -m rl_risk_replay verify --bundle artifacts/sentinel-demo
 ```
 <!-- /sentinel:quickstart -->
 
-用浏览器打开 `artifacts/sentinel-demo/report.html`。程序会真实执行 **18 次 Q-learning 训练**，再比较三种建议策略。输出目录必须是新目录，已有证据不会被覆盖。
+demo 会真实执行 18 次 Q-learning 训练，覆盖三种条件，再比较三种建议策略。用浏览器打开 `artifacts/sentinel-demo/report.html`。输出目录必须是新目录，已有证据不会被覆盖。
 
-仓库名称是 **RL-Sentinel**；为保持兼容，Python 模块仍是 **`rl_risk_replay`**。[安装、产物说明与常见问题 →](docs/GETTING_STARTED.zh-CN.md)
+需要 Python 3.12+。严格核心不需要 GPU、API Key 或第三方运行时依赖。仓库名与展示名是 **RL Sentinel**；Python 模块仍是 `rl_risk_replay`，以保持兼容。
 
-## 它可以帮你做什么
+<a id="research-system"></a>
+## 研究系统
 
-**复盘一次训练。** 查看给出建议时已经可用的观测与历史样本，而不是拿最终结果倒推当时的判断。
+研究层把训练 run 变成一条可复现的流水线：
 
-**比较不同建议策略。** 对同一批运行回放规则、始终继续、始终停止三种策略，同时保留漏检、误停与拒绝判断的情况。
+```text
+版本化 dataset → checkpoint 因子面板 → as-of cohort 回测 → 静态研究报告
+```
 
-**交付可核验的实验。** 把事件流、决策输入、配置与结果放进同一个证据包，附上文件清单和哈希，便于他人复核。
+### 版本化数据集
 
-<a id="research"></a>
-## 不只是一个面板，而是一层量化研究系统
+`research/dataset.py` 输出 `runs`、`events`、`eval_points`、`labels`、`factor_panel`、`factor_summary` 和 `factor_registry` 七张 Parquet 表，以及 `research.duckdb` 和 `manifest.json`。
 
-`research/` 把可靠性核心升级为完整研究流水线：版本化数据集（DuckDB + Parquet）、checkpoint 因子面板、as-of cohort 回测，以及单文件静态报告。当前预览使用 1 条 observed full curriculum run + 独立标注的 legacy/offline cohort，因此 readiness 仍为 `blocked`。
+`dataset_version` 是对 run 输入、标签、因子版本、checkpoint 和研究源码的内容哈希。相同输入得到相同版本；已存在的版本目录直接复用，不覆盖。
 
-![RL-Sentinel 研究报告](docs/assets/research-report-preview.png)
+### 因子面板
 
-只读 **Live** 页面消费训练快照，每 15 秒自动刷新，展示 curriculum 进度、最新 eval、throughput、ETA 与最终 label；它不会混入版本化数据集。
+在每个 run 预算的 30%、50% 和 70% 处，面板只使用 `step <= checkpoint_step` 的样本计算 24 个因子：
 
-[研究系统、Live 页面、因子注册与 18-run 计划 →](docs/RESEARCH_SYSTEM.md)
+| 类别 | 因子 |
+| --- | --- |
+| 收敛 | reward_last, reward_peak, reward_drawdown, reward_slope, reward_neg_ratio |
+| 稳定 | reward_std_recent |
+| 健康 | kl_last, kl_mean_recent, kl_max_recent, kl_divergent_streak, value_loss_last, value_loss_slope |
+| 进度 | progress_last, progress_slope, step_coverage |
+| 执行 | success_rate_last, success_rate_slope, segment_last, segment_changes |
+| 覆盖 | sample_count |
+| 评估 | eval_success_rate_last, eval_success_rate_slope, eval_mean_reward_last, eval_mean_x_last |
 
-<a id="time-boundary"></a>
-## 最重要的是这条时间边界
+标签永远不会进入因子。因子覆盖率与 Spearman IC 只在样本支持时报告；否则输出 `N/A`，而不是 0。
 
-事件发生了，不代表系统当时已经知道。决策之后才生成的报告，即使描述的是更早的训练步数，也不应该影响过去的建议。
+### as-of 回测
 
-RL Sentinel 同时检查 **`event_time` 与 `available_at`**。目标运行的最终结果只用于事后评分，不进入预测输入；可用历史样本在目标启动时冻结。
+`research/backtest.py` 在每个 checkpoint 回放三种策略：
 
-<details>
-<summary><strong>展开查看：观测 → 决策 → 证据</strong></summary>
+- `always-continue`：永不停；
+- `always-stop`：每个 checkpoint 都停；
+- `rules-v2`：drawdown ≥ 0.30、KL ≥ 0.10、KL 连续发散 ≥ 3，或 progress slope ≤ 0 且覆盖足够。
 
-<picture>
-  <source media="(max-width: 600px)" srcset="docs/assets/replay-pipeline-mobile.svg" />
-  <img src="docs/assets/replay-pipeline-architecture.svg" alt="观测写入 SQLite，as-of 视图筛选当时可见的输入，策略产生建议。目标运行的结束与标签事件仅在评分侧接入。旧 CSV 独立保留为审计路径。" width="100%" />
-</picture>
+操作门槛刻意设得很严：至少 **5 条有标签的 pass run** 和 **10 条 fail run**。未达到之前，readiness 保持 `blocked`。observed cohort 与 legacy cohort 分开报告；legacy 没有事件时间，永远不计入门槛。
 
-这是可信生产者与预测器之间的数据接口边界，不是防恶意代码的沙箱。[事件字段、人工标签优先级与时间语义 →](docs/RELIABILITY_V2.md)
+### 报告与 Live 页面
 
-</details>
+`research/report.py` 生成单文件 HTML 研究报告，视觉语言参考 Claude Code：暖色纸面、ink 文本、clay 强调色、serif 标题与 mono 指标。报告包含 run explorer、learning signal、factor lab、backtest、readiness 和 evidence，无外部脚本、字体或图片。
 
-<a id="results"></a>
-## 实验发现了什么
+`research/live.py` 从训练快照生成只读页面，每 15 秒刷新，展示 curriculum 进度、event budget 覆盖、stage 状态、最新 eval、throughput、ETA 与最终 label。
 
-**已归档验证：2026 年 10 月 6 日，v0.2。** 同一张 4×4 网格，6 个种子、3 种条件，每次训练 4,000 个环境步；最终使用不同随机数流评估 30 回合。这是受控故障注入，不是 Go2W 留出场景基准。[协议与原始证据 →](docs/VALIDATION_V2_2026-10-06.md)
+<a id="live-training"></a>
+## 实时训练接入
 
-正常学习产生 6 次成功；关闭学习、在 55% 预算处清空策略分别产生 6 次失败。在 **70% 预算检查点**：
+第一个生产者是 MoRA-Train 项目中的 Go2W 轮足机器狗。训练 run 写 `events.jsonl`；Windows 侧 job runner 可以在不修改 run 目录的前提下返回只读快照：
 
-| 策略 | 识别失败 | 误停成功运行 | 决策覆盖 |
+```text
+Windows run directory
+  → win_job_runner.py snapshot
+  → snapshot JSON
+  → research/live.py
+  → research/reports/live/index.html
+```
+
+![RL Sentinel Live 训练页面](docs/assets/research-live-preview.png)
+
+*Live 页面是诊断工具，不是证据。它不会执行 stop、tune 或 resize；run 完成后仍以 fetch 回来的 run 和 SHA-256 manifest 为准。*
+
+<a id="evidence"></a>
+## 证据
+
+### 受控故障注入（v0.2）
+
+6 个 seed、3 种条件、每次训练 4,000 步、一个 4×4 网格。正常学习产生 6 次成功；关闭学习、在 55% 预算处清空策略分别产生 6 次失败。在 70% checkpoint：
+
+| 策略 | 识别失败 | 误停成功 run | 决策覆盖 |
 | --- | ---: | ---: | ---: |
 | 始终继续 | 0 / 12 | 0 / 6 | 18 / 18 |
 | 始终停止 | 12 / 12 | 6 / 6 | 18 / 18 |
 | **Rules-v2** | **6 / 12** | **0 / 6** | **17 / 18** |
 
-**结论也包括盲区：** rules-v2 识别了 6 次后期策略清空故障，却漏掉全部 6 次关闭学习的失败；另有 1 次拒绝判断。在 30% 和 50% 检查点，没有停止建议。
+Rules-v2 识别了 6 次后期策略清空失败，却漏掉全部 6 次关闭学习的失败；另有 1 次拒绝判断。在 30% 和 50% checkpoint，没有停止建议。
 
-6 个成功样本中没有误停，**不等于总体误杀率为零**。所有受控结果仍为 `readiness: blocked`，不声称实际节省了算力。
+6 个成功样本中没有误停，**不等于**总体误杀率为零。所有受控结果仍为 `readiness: blocked`；不声称实际节省了算力。
 
-<details>
-<summary><strong>展开查看：验证范围与复现命令</strong></summary>
+### Observed Go2W run
 
-同一份 v0.2 验收记录中，Linux 和 Windows 分别通过 **62 个核心测试方法 + 25 个子测试**，Linux 另通过 **265 项历史回归**，严格新核心 Pyright 通过。跨平台重复运行不计为更多独立测试。
+`mseg-events-full-s0b` 完成 3 个 curriculum stage，并通过 20 回合验收：success rate 1.0，mean distance 10.6635，mean episode length 1428，最终 label 为 `pass`。
 
-**200 组未来信息扰动**均未改变历史输入哈希和建议；修改已经可见的信息，两者均改变，作为负对照。这些是约定范围内的测试，不是所有可能输入的形式化证明。
+当前数据集 `1a4553c8acd7aa8b` 包含 **1 条 observed pass + 48 条 legacy/offline run**。Observed readiness 仍是 `blocked`，因为门槛要求 5 条有标签的 pass run 和 10 条 fail run。这证明流水线端到端可用，不证明因子有效性或早停收益。
+
+<a id="design-rules"></a>
+## 设计原则
+
+1. **时间边界是数据的一部分。** 一个事件只有在既被记录（`event_time`）又可被使用（`available_at`）时才成立。
+2. **标签用于评分，不进入决策输入。** 目标 run 的最终结果永远不会进入它自己的预测输入。
+3. **Cohort 不混用。** 有事件时间的 observed run 与没有事件时间的 legacy/offline run 分开报告。
+4. **缺失时间不补造。** 没有 `available_at` 的历史 CSV 只留在离线路径。
+5. **`N/A` 不是 0。** 分母不存在时显示缺失。
+6. **只给建议。** 不自动 stop、tune 或 resize。
+7. **证据按内容寻址。** SHA-256 manifest 检测变化，不是密码学签名。
+
+<a id="development"></a>
+## 开发与验证
 
 ```bash
+# 严格核心
 python -m pip install -r requirements-core-dev.txt
-python -m pytest tests_v2/ -q
+python -m pytest tests_v2 -q
 python -m pyright --project pyright-core.json
-python scripts/validate_reliability_v2.py --out artifacts/core-validation
+
+# 研究层
+python -m pip install -r requirements-research.txt
+python -m pytest tests_research -q
+
+# 历史回归
+python -m pip install -r requirements-dev.txt
+python -m pytest tests -q
 ```
 
-完整历史套件还需安装 `requirements-dev.txt`。全仓类型检查仍为非阻断检查，历史债务未清零；严格门槛仅覆盖 `rl_risk_replay/`。
+严格核心的类型门槛只覆盖 `rl_risk_replay/`；研究层与历史模块不在该强制门槛内。
 
-</details>
+<a id="repository-map"></a>
+## 仓库地图
 
-<a id="integration"></a>
-## 接入你自己的训练观测
+| 路径 | 内容 |
+| --- | --- |
+| `rl_risk_replay/` | 严格事件合同、as-of 回放、策略、证据包 |
+| `research/` | 数据集、因子、回测、静态报告、Live 页面 |
+| `tests_v2/` | 严格核心单元测试与对抗测试 |
+| `tests_research/` | 数据集、因子、回测与报告测试 |
+| `docs/` | 协议、研究系统、验收记录、使用指南 |
+| `legacy/` | 归档的 CSV 分析路径 |
+| 根目录模块 | 历史量化分析与 dashboard |
 
-在可信的观察回调里使用 `EventStore.record`（或 append-only 事件 writer），分别记录 `start`、步数递增的 `sample`、`finish` 与 `label`。只有实际评估或人工复核产生了标签，才记录它。RL-Sentinel 本身提供事件合同与回放核心；SB3/ROS/远端集群等 producer 侧适配器放在各自仓库。
+<a id="documentation"></a>
+## 文档
 
-**Go2W producer（第一个接入）。** Go2W 仓库提供 SB3 `Sb3EventCallback`，写入 `progress`、`success_rate`、`segment` 可选字段；严格合同已接受这些任务遥测。真实 Go2W 三阶段 run 已完成 ingest、证据采集并进入研究报告；多 run 矩阵仍在进行。[Go2W 系统层 ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
+- [开始使用](docs/GETTING_STARTED.zh-CN.md) · [Getting started](docs/GETTING_STARTED.md)
+- [研究系统](docs/RESEARCH_SYSTEM.md)
+- [v0.2 协议与迁移](docs/RELIABILITY_V2.md)
+- [2026-10-06 验收记录](docs/VALIDATION_V2_2026-10-06.md)
+- [历史验收与指标审计](docs/portfolio-validation.md)
+- [文档导航](docs/README.md)
 
-对已经存在的事件库运行：
+<a id="scope"></a>
+## 范围与边界
 
-```bash
-python -m rl_risk_replay replay --db artifacts/training.sqlite --out artifacts/training-review
-```
+**已经建立：** 事件合同、按时间筛选的回放、明确的决策指标、版本化研究数据集、checkpoint 因子、带 readiness 门槛的回测，以及带哈希的证据包。
 
-[接入观察器 →](docs/GETTING_STARTED.zh-CN.md#integration) · [完整事件协议 →](docs/RELIABILITY_V2.md)
-
-<a id="boundaries"></a>
-## 能力边界与旧版本兼容
-
-**严格 v0.2 路径：** 事件校验、按时间筛选输入、明确的决策指标、SQLite 批次事务和可核验的证据包。新规则只覆盖一个子集，不等于旧规则全部迁移，也没有校准失败概率。
-
-**历史路径：** 原 CSV、人工标签和报告保持不变，不推算缺失的可用时间戳。现有历史运行没有直接满足严格回放要求的样本；旧 Python API 保留已知的事后信息泄漏，旧回放 CLI 必须显式使用 `--legacy-retrospective`。
-
-**尚未验证：** 生产环境安全干预、跨任务预测泛化、大规模采集与来源认证。哈希只能核对内容与清单，不能替代签名；可比较的生产者时钟和正确的运行身份仍是前提。
-
-[浏览文档 →](docs/README.md) · [迁移说明与未完成项 →](docs/RELIABILITY_V2.md) · [核心源码 →](rl_risk_replay/)
+**尚未建立：** 生产级安全干预、跨任务预测泛化、大规模采集、来源认证，以及真实算力节省。哈希只能核对内容与清单，不能替代签名；可比较的生产者时钟和正确的 run 身份仍是前提。
 
 ---
 
-由 [Anhao1314](https://github.com/Anhao1314) 与 [Claude-Anhao](https://github.com/Claude-Anhao) 维护。本次更名更新项目品牌，不改变 Python 导入路径、历史证据或许可证状态。
+由 [Anhao1314](https://github.com/Anhao1314) 与 [Claude-Anhao](https://github.com/Claude-Anhao) 维护。
