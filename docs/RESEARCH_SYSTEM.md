@@ -120,6 +120,28 @@ research/data/<dataset_version>/
 - 无外部脚本、字体或图片
 - legacy cohort 放在折叠区，并明确标注“不计入 observed 门槛”
 
+## 5.1 Live training page
+
+实时训练进度通过只读快照接入，不进入版本化 dataset：
+
+```text
+Windows run dir → win_job_runner.py snapshot → live snapshot JSON
+                → research/live.py → research/reports/live/index.html
+```
+
+页面每 15 秒自动刷新，展示：
+
+- curriculum 进度 / event budget 覆盖
+- 当前 stage、已完成 stage 数
+- latest eval success / mean x
+- throughput、ETA
+- final label（完成后）
+- 指向静态研究报告的链接
+
+![Live training page](assets/research-live-preview.png)
+
+**边界：** live 页面不是证据。它不执行 stop/tune/resize；run 完成后仍以 `fetch` + `collect_run_evidence.py` 的 manifest 和静态报告为准。
+
 ## 6. 命令
 
 安装研究依赖：
@@ -157,13 +179,29 @@ python -m research run \
   --hypothesis "drawdown at 50% predicts failure"
 ```
 
+实时快照与 Live 页面：
+
+```bash
+python tools/win_train.py live <job-id> --out ../RL-Sentinel/research/live/<job-id>.json
+```
+
+```bash
+python -m research live \
+  --snapshot research/live/<job-id>.json \
+  --out research/reports/live \
+  --report-url ../<report-name>/report.html
+```
+
+持续刷新时，把两条命令放进 15 秒循环即可；页面自身也会每 15 秒 reload。
+
 ## 7. 当前预览状态（2026-10-19）
 
-- 数据集：1 个 observed smoke（label `unknown`）+ 48 个 legacy runs
-- observed readiness：`blocked`（0 pass / 0 fail / 1 unknown）
+- 数据集：`1a4553c8acd7aa8b`，1 个 observed full run（`mseg-events-full-s0b`，label `pass`）+ 48 个 legacy runs
+- observed readiness：`blocked`（1 pass / 0 fail；门槛为 5 pass + 10 fail）
 - legacy cohort：存在历史标签，但 `strict_asof=False`，不计入门槛
-- 报告：`research/reports/go2w-preview*/report.html`
-- 预览图：`docs/assets/research-report-preview.png`
+- 报告：`research/reports/go2w-full-s0b/report.html`
+- Live：`research/reports/live/index.html`（只读快照，指向上述静态报告）
+- 预览图：`docs/assets/research-report-preview.png`、`docs/assets/research-live-preview.png`
 
 这说明研究流水线已跑通，但不构成早停有效性结论。
 

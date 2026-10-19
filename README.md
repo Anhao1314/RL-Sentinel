@@ -43,11 +43,13 @@ The repository name is **RL-Sentinel**. The Python module remains **`rl_risk_rep
 <a id="research"></a>
 ## A research layer, not just a dashboard
 
-`research/` upgrades the reliability core into a quantitative research workflow: versioned datasets (DuckDB + Parquet), checkpoint factor panels, as-of cohort backtests, and a self-contained static report. The current preview uses one observed smoke run plus a separately labelled legacy/offline cohort, so its readiness remains `blocked`.
+`research/` upgrades the reliability core into a quantitative research workflow: versioned datasets (DuckDB + Parquet), checkpoint factor panels, as-of cohort backtests, and a self-contained static report. The current preview uses one observed full curriculum run plus a separately labelled legacy/offline cohort, so its readiness remains `blocked`.
 
 ![RL-Sentinel research report](docs/assets/research-report-preview.png)
 
-[Research system, factor registry and 18-run plan →](docs/RESEARCH_SYSTEM.md)
+A read-only **Live** page consumes a training snapshot, auto-refreshes every 15 seconds, and shows curriculum progress, latest eval, throughput, ETA and the final label. It is never merged into the versioned dataset.
+
+[Research system, live page, factor registry and 18-run plan →](docs/RESEARCH_SYSTEM.md)
 
 <a id="time-boundary"></a>
 ## The boundary that matters
@@ -108,7 +110,7 @@ The full historical suite needs `requirements-dev.txt`. Full-repository typing r
 
 Use `EventStore.record` (or an append-only event writer) in a trusted observer to record `start`, increasing-step `sample`, `finish` and `label` events separately. Record labels only when evaluation or review actually produces them. RL-Sentinel itself ships the event contract and replay core; producer-side SB3/ROS/remote-cluster adapters live in their own repositories.
 
-**Go2W producer (first integration).** The Go2W repository ships an SB3 `Sb3EventCallback` that emits this stream with optional `progress`, `success_rate`, and `segment`. The strict contract accepts these as task telemetry. A real Go2W smoke stream has been ingested and replayed; full multi-run analysis is still in progress. [Go2W system layer ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
+**Go2W producer (first integration).** The Go2W repository ships an SB3 `Sb3EventCallback` that emits this stream with optional `progress`, `success_rate`, and `segment`. The strict contract accepts these as task telemetry. A real three-stage Go2W run has been ingested, evidence-collected and rendered in the research report; the multi-run matrix is still in progress. [Go2W system layer ↗](https://github.com/Anhao1314/Go2w-MoRA-navigation/blob/main/docs/MORA_TRAIN.md)
 
 For an existing event database:
 
