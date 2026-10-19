@@ -40,6 +40,15 @@ python -m rl_risk_replay verify --bundle artifacts/sentinel-demo
 
 **交付可核验的实验。** 把事件流、决策输入、配置与结果放进同一个证据包，附上文件清单和哈希，便于他人复核。
 
+<a id="research"></a>
+## 不只是一个面板，而是一层量化研究系统
+
+`research/` 把可靠性核心升级为完整研究流水线：版本化数据集（DuckDB + Parquet）、checkpoint 因子面板、as-of cohort 回测，以及单文件静态报告。当前预览使用 1 条 observed smoke + 独立标注的 legacy/offline cohort，因此 readiness 仍为 `blocked`。
+
+![RL-Sentinel 研究报告](docs/assets/research-report-preview.png)
+
+[研究系统、因子注册与 18-run 计划 →](docs/RESEARCH_SYSTEM.md)
+
 <a id="time-boundary"></a>
 ## 最重要的是这条时间边界
 

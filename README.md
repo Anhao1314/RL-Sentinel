@@ -40,6 +40,15 @@ The repository name is **RL-Sentinel**. The Python module remains **`rl_risk_rep
 
 **Share an auditable experiment.** Keep the event stream, decision inputs, configuration and results together in a bundle with a file manifest and hashes.
 
+<a id="research"></a>
+## A research layer, not just a dashboard
+
+`research/` upgrades the reliability core into a quantitative research workflow: versioned datasets (DuckDB + Parquet), checkpoint factor panels, as-of cohort backtests, and a self-contained static report. The current preview uses one observed smoke run plus a separately labelled legacy/offline cohort, so its readiness remains `blocked`.
+
+![RL-Sentinel research report](docs/assets/research-report-preview.png)
+
+[Research system, factor registry and 18-run plan →](docs/RESEARCH_SYSTEM.md)
+
 <a id="time-boundary"></a>
 ## The boundary that matters
 

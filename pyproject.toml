@@ -9,8 +9,19 @@ description = "Time-correct, recommendation-only RL experiment reliability"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.optional-dependencies]
+research = [
+  "duckdb>=1.1",
+  "pandas>=2.0",
+  "pyarrow>=15",
+  "numpy>=1.26",
+  "scipy>=1.10",
+  "scikit-learn>=1.4",
+]
+
 [project.scripts]
 rl-risk = "rl_risk_replay.__main__:main"
+rl-research = "research.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["rl_risk_replay*"]
+include = ["rl_risk_replay*", "research*"]

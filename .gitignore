@@ -6,6 +6,9 @@ data/*.log
 data/.quant_last_date
 data/quant.log
 data/monitor/
+research/data/
+research/reports/
+research/registry/
 
 config.local.json
 .env
