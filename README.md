@@ -11,7 +11,7 @@ RL Sentinel records what a reinforcement-learning run actually knew at each chec
 
 <p><code>Python 3.12+</code> · <code>stdlib strict core</code> · <code>DuckDB + Parquet research layer</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
 
-[Quick start](#quick-start) · [Research system](#research-system) · [Live training](#live-training) · [Evidence](#evidence) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
+[Quick start](#quick-start) · [Research system](#research-system) · [Watchdog](#training-platform-watchdog) · [Live training](#live-training) · [Evidence](#evidence) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
 
 > RL Sentinel produces local recommendations only. It does not stop training automatically. The controlled experiment demonstrates a workflow, not production early-stop effectiveness.
 
@@ -42,6 +42,7 @@ Labels are used for scoring only. They are never factor inputs.
 | --- | --- | --- |
 | **Strict core** (`rl_risk_replay/`) | Event contract, as-of replay, decision policies, evidence bundles. Stdlib only. | SQLite, JSON, self-contained HTML |
 | **Research layer** (`research/`) | Versioned dataset, checkpoint factors, cohort backtest, static research note, live page. | Parquet, DuckDB, HTML |
+| **Agent layer** (`sentinel_agent/`) | Staleness-aware live watchdog: producer SDK, producer-silence detection, Prometheus exposition, opt-in webhook. Stdlib only. | JSONL tail, Prometheus, Grafana |
 | **Producer adapters** | SB3 callback and Go2W run output. | `events.jsonl`, snapshot JSON |
 | **Archived v1** (`archive/v1` branch, off main) | Older CSV-based analyses, preserved for audit but retired. | CSV, Markdown, content-hash [manifest](data/manifest.json) |
 
@@ -146,6 +147,30 @@ Windows run directory
 ![RL Sentinel live training page](docs/assets/research-live-preview.png)
 
 *The live page is diagnostic, not evidence. It never executes stop, tune or resize actions. The fetched run and its SHA-256 manifest remain authoritative.*
+
+<a id="training-platform-watchdog"></a>
+## Training platform watchdog
+
+Every monitoring stack shares one silent failure mode: it judges health by the last metric it saw, so a hung trainer keeps reporting a healthy plateau. The v0.4 agent layer (`sentinel_agent/`, stdlib-only) separates the two questions:
+
+- *What does the data say?* — last observed sample metrics, exposed to Prometheus.
+- *Is the data still alive?* — wall-clock silence of the producer per active run.
+
+It alerts on the second (`producer_silence`) without waiting for a finish event or a metric threshold, and it never touches the training process: alerts notify a human (opt-in Feishu-style webhook); decisions stay recommendation-only. Producer events are validated through the frozen schema-v2 contract before they are written; the agent drops what the contract does not vouch for (`sentinel_events_invalid_total`), dedups at-least-once delivery by `event_id`, and rebuilds its state by replaying the stream after a crash.
+
+```bash
+# one trainer that hangs after 40 healthy samples + one watchdog
+python -m sentinel_agent demo --out /tmp/events.jsonl &
+python -m sentinel_agent watch --events /tmp/events.jsonl --stale-after 30 &
+curl -s localhost:9101/metrics | grep staleness
+```
+
+```bash
+# full stack: trainer + agent + Prometheus + Grafana (preloaded dashboard)
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+The registered claim `agent.hang-demo.staleness` re-proves the whole chain deterministically in CI (virtual clock, no network) via `python -m sentinel_agent selftest`.
 
 <a id="evidence"></a>
 ## Evidence

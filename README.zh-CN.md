@@ -11,7 +11,7 @@ RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息�
 
 <p><code>Python 3.12+</code> · <code>严格核心零第三方依赖</code> · <code>DuckDB + Parquet 研究层</code> · <a href="https://github.com/Anhao1314/RL-Sentinel/actions">CI / Actions ↗</a></p>
 
-[快速开始](#quick-start) · [研究系统](#research-system) · [实时训练](#live-training) · [证据](#evidence) · [文档导航](docs/README.md) · [English](README.md)
+[快速开始](#quick-start) · [研究系统](#research-system) · [训练守护](#training-platform-watchdog) · [实时训练](#live-training) · [证据](#evidence) · [文档导航](docs/README.md) · [English](README.md)
 
 > 只输出本地建议，不自动停止训练。受控实验证明的是工作流，不是生产环境的早停效果。
 
@@ -43,6 +43,7 @@ RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息�
 | --- | --- | --- |
 | **严格核心**（`rl_risk_replay/`） | 事件合同、as-of 回放、决策策略、证据包。仅使用标准库。 | SQLite、JSON、单文件 HTML |
 | **研究层**（`research/`） | 版本化数据集、checkpoint 因子、cohort 回测、静态研究报告、Live 页面。 | Parquet、DuckDB、HTML |
+| **守护层**（`sentinel_agent/`） | staleness 感知的在线守护：producer SDK、producer 静默检测、Prometheus 指标、可选 webhook。仅使用标准库。 | JSONL tail、Prometheus、Grafana |
 | **生产者适配** | SB3 callback 与 Go2W run 输出。 | `events.jsonl`、快照 JSON |
 | **已归档 v1**（`archive/v1` 分支，不在 main） | 旧的 CSV 分析流程，保留可检出但已退役。 | CSV、Markdown、内容哈希[清单](data/manifest.json) |
 
@@ -148,6 +149,31 @@ Windows run directory
 ![RL Sentinel Live 训练页面](docs/assets/research-live-preview.png)
 
 *Live 页面是诊断工具，不是证据。它不会执行 stop、tune 或 resize；run 完成后仍以 fetch 回来的 run 和 SHA-256 manifest 为准。*
+
+<a id="training-platform-watchdog"></a>
+## 训练平台守护
+
+所有监控栈共有一个静默失效模式：用「最后一条指标」判断健康，于是挂死的训练进程会一直展示健康曲线。v0.4 守护层（`sentinel_agent/`，仅标准库）把两个问题刻意分开：
+
+- *数据说了什么？* —— 最后一条样本指标，暴露给 Prometheus；
+- *数据还活着吗？* —— 每个活跃 run 的 producer 墙钟静默时长。
+
+守护层对后者告警（`producer_silence`）：不等 finish 事件、不等指标越阈值。它不触碰训练进程——告警仅通知人工（可选飞书格式 webhook），决策保持 recommendation-only。producer 事件写入前先过冻结的 schema-v2 契约；agent 丢弃契约不背书的数据（`sentinel_events_invalid_total`），按 `event_id` 对 at-least-once 摄入去重，崩溃后通过全量重放重建状态。
+
+```bash
+# 一个「健康 40 步后挂死」的演示训练器 + 一个守护进程
+python -m sentinel_agent demo --out /tmp/events.jsonl &
+python -m sentinel_agent watch --events /tmp/events.jsonl --stale-after 30 &
+curl -s localhost:9101/metrics | grep staleness
+```
+
+```bash
+# 完整栈：trainer + agent + Prometheus + Grafana（预置看板）
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+已登记声明 `agent.hang-demo.staleness` 在 CI 中确定性复验全链路（虚拟时钟、无网络）：
+`python -m sentinel_agent selftest`。
 
 <a id="evidence"></a>
 ## 证据

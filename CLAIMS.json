@@ -73,6 +73,25 @@
       "denominator": "v1 estimation formula, not a measurement",
       "boundary": "The project never claimed realized compute savings; no auditable cost baseline exists.",
       "blocker": "Retired together with the original prediction goal. See docs/adr/0001-from-prediction-to-evidence.md."
+    },
+    {
+      "id": "agent.hang-demo.staleness",
+      "statement": "The sentinel agent raises exactly one producer-silence alert for a run whose last metrics looked healthy and whose writer then went silent, without any finish event; a resumed event resets the incident, and a finished run never alerts.",
+      "status": "verified",
+      "denominator": "1 hung demo run under a virtual clock; the alert rule is data-availability based, not metric based",
+      "boundary": "Deterministic self-test on synthetic events; not a tuned production hang detector. Recommendation-only: alerts notify a human, no training process is touched.",
+      "reproduce": ["python", "-m", "sentinel_agent", "selftest", "--out", "{bundle}"],
+      "artifact": "results.json",
+      "check": {
+        "path": "agent",
+        "equals": {
+          "staleness_alert_fired": true,
+          "alerts_total": 1,
+          "active_runs_after_finish": 0,
+          "duplicates": 0,
+          "invalid": 0
+        }
+      }
     }
   ]
 }

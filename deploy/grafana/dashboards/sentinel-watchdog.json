@@ -1,0 +1,81 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Producer silence per run (seconds since last event)",
+      "description": "The staleness trap detector: a hung trainer shows a flat healthy reward while this line climbs past stale_after.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 30 } ] } }, "overrides": [] },
+      "targets": [
+        { "expr": "sentinel_run_staleness_seconds", "legendFormat": "{{run_id}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Last observed reward (what the data says)",
+      "description": "Deliberately healthy-looking during the hang: this is why staleness needs its own signal.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "expr": "sentinel_run_reward", "legendFormat": "{{run_id}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Last observed approx_kl",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "expr": "sentinel_run_approx_kl", "legendFormat": "{{run_id}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Data age (now - newest available_at)",
+      "description": "How old the newest trustworthy information is; deferred (evaluation) signals age separately from write-time telemetry.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "sentinel_run_data_age_seconds", "legendFormat": "{{run_id}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Silence alerts fired",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 17 },
+      "targets": [ { "expr": "sentinel_alerts_silence_total", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Active runs",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 17 },
+      "targets": [ { "expr": "sentinel_runs_active", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Contract-rejected events",
+      "description": "Events the frozen schema-v2 contract refused; never silently guessed into the watchdog state.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 17 },
+      "targets": [ { "expr": "sentinel_events_invalid_total", "refId": "A" } ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["rl-sentinel", "watchdog"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "RL Sentinel — training watchdog",
+  "uid": "sentinel-watchdog",
+  "version": 1
+}

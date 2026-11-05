@@ -12,6 +12,23 @@
 
 ## [Unreleased]
 
+### 新增（训练平台层，v0.4 方向，2026-11-06）
+
+- 【新增】`sentinel_agent/`：staleness-aware 训练守护层。严格核心 `rl_risk_replay/` 与既有结论
+  零改动；事件仍由 schema-v2 契约逐条校验，agent 拒绝契约外数据（`sentinel_events_invalid_total`）。
+- producer SDK：torchrun rank 感知 run_id（rank 编码进 run_id，不扩展冻结 schema）、显式
+  `defer_seconds` 可用性声明（延迟信号如实申报，不伪造即时性）、周期 fsync、输出禁止覆盖
+  （`open("xb")`）；`tests_agent` 验证 SDK 输出通过 `validate_events` 全量校验。
+- agent：按 run 的 producer 静默检测（`--stale-after`，虚拟时钟确定性测试）、`event_id` 幂等去重
+  （at-least-once 摄入安全）、崩溃后全量重放重建状态、Prometheus 文本指标（缺失指标不伪造为 0）、
+  可选飞书格式 webhook（仅通知人工核查，不触碰训练进程）。
+- 部署：`deploy/` 一键 compose（trainer + agent + Prometheus + Grafana 预置看板，匿名只读）。
+- 登记声明 `agent.hang-demo.staleness`（verified）：`python -m sentinel_agent selftest` 以虚拟时钟
+  确定性复现「最后指标看似健康 → 静默告警 → 数据恢复后重置 → finish 后不再告警」全链路。
+- CI：strict-core job 增跑 `tests_agent/`；ruff 门禁覆盖 `sentinel_agent`、`tests_agent`。
+
+### 状态同步与文档更正（2026-11-05）
+
 本次为冻结期内的状态同步与文档更正（2026-11-05），不改变代码、不改写 git 历史。
 
 - 【事实】所有者于 2026-11-05 确认该飞书 webhook 已在飞书侧轮换并停用，历史 URL 不再有效；
