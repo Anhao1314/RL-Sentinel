@@ -28,9 +28,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from rl_risk_replay.events import Event, canonical
+from rl_risk_replay.events import ContractError, Event, canonical
 
 from . import __version__
 
@@ -39,6 +39,18 @@ AlertSink = Callable[[Alert], None]
 
 _METRIC_KEYS = ("reward", "approx_kl", "value_loss", "memory_percent",
                 "progress", "success_rate", "segment")
+
+
+def _as_int(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ContractError("expected an integer")
+    return value
+
+
+def _as_float(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ContractError("expected a number")
+    return float(value)
 
 
 @dataclass(frozen=True)
@@ -72,7 +84,7 @@ class RunState:
     last_event_wall: float = 0.0
     last_available_at: float = 0.0
     last_step: int | None = None
-    last_metrics: dict[str, float] = field(default_factory=dict)
+    last_metrics: dict[str, float] = field(default_factory=dict[str, float])
     verdict: str | None = None
     events: int = 0
     alerted_silence: bool = False
@@ -154,8 +166,8 @@ class Agent:
             entry.starts = run.attempt
             entry.last_cancelled = False
         elif event.kind == "sample":
-            run.last_step = int(payload["step"])
-            run.last_metrics = {key: float(payload[key]) for key in _METRIC_KEYS
+            run.last_step = _as_int(payload["step"])
+            run.last_metrics = {key: _as_float(payload[key]) for key in _METRIC_KEYS
                                 if key in payload}
         elif event.kind == "finish":
             run.finished = True
@@ -336,8 +348,13 @@ class AgentHTTPServer(ThreadingHTTPServer):
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args: object) -> None:  # keep daemon logs quiet
-        pass
+    def log_message(self, format: str = "", *args: object) -> None:
+        pass  # keep daemon logs quiet
+
+    @property
+    def agent(self) -> Agent:
+        """Narrow the bound server: this handler only ever serves AgentHTTPServer."""
+        return cast(AgentHTTPServer, self.server).agent
 
     def _respond(self, status: int, content_type: str, body: bytes) -> None:
         self.send_response(status)
@@ -347,7 +364,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
-        agent: Agent = self.server.agent  # type: ignore[attr-defined]
+        agent = self.agent
         path = self.path.split("?", 1)[0]
         if path == "/" or path == "/index.html":
             from .console import console_html
@@ -389,7 +406,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
 
     def do_POST(self) -> None:
-        agent: Agent = self.server.agent  # type: ignore[attr-defined]
+        agent = self.agent
         if self.path.split("?", 1)[0] != "/events":
             self._respond(404, "text/plain; charset=utf-8", b"not found")
             return

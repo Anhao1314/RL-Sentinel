@@ -15,9 +15,10 @@ producer silence alert covers the unhandled case anyway).
 from __future__ import annotations
 
 import importlib.util
+import math
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from rl_risk_replay.events import ContractError
 
@@ -31,7 +32,8 @@ DEFAULT_SB3_METRIC_MAP: Mapping[str, str] = {
 }
 
 
-def _require(module_name: str, hint: str) -> Any:
+def require_module(module_name: str, hint: str) -> Any:
+    """Import a framework module or fail with an actionable install hint."""
     if importlib.util.find_spec(module_name.split(".")[0]) is None:
         raise ContractError(
             f"{module_name} is not installed; the watchdog adapter is optional. "
@@ -39,13 +41,26 @@ def _require(module_name: str, hint: str) -> Any:
     return importlib.import_module(module_name)
 
 
-def _logger_values(callback: Any) -> Mapping[str, float]:
+def _logger_values(callback: Any) -> dict[str, float]:
+    """Snapshot the framework logger; values reduce to finite floats or drop."""
     logger = getattr(callback, "logger", None)
     values = getattr(logger, "name_to_value", None)
-    return values if isinstance(values, Mapping) else {}
+    if not isinstance(values, Mapping):
+        return {}
+    pairs: Mapping[object, object] = cast("Mapping[object, object]", values)
+    result: dict[str, float] = {}
+    for key, item in pairs.items():
+        try:
+            # Duck-typed on purpose: 0-dim tensors and numpy scalars reduce here.
+            number = float(item)  # pyright: ignore[reportArgumentType]
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number):
+            result[str(key)] = number
+    return result
 
 
-def build_sentinel_callback(base: type, *, producer: SentinelProducer,
+def build_sentinel_callback(base: type[Any], *, producer: SentinelProducer,
                             metric_map: Mapping[str, str] | None = DEFAULT_SB3_METRIC_MAP,
                             emit_every_steps: int = 2048,
                             defer_seconds: float = 0.0) -> Any:
@@ -56,8 +71,12 @@ def build_sentinel_callback(base: type, *, producer: SentinelProducer,
         raise ValueError("emit_every_steps must be positive")
 
     class _SentinelCallback(base):  # type: ignore[misc, valid-type]
+        producer: SentinelProducer
+        num_timesteps: int
+        logger: Any
+
         # SB3 calls _on_training_start(locals_); the argument is ignored here.
-        def _on_training_start(self, locals_: dict | None = None) -> None:
+        def _on_training_start(self, locals_: dict[str, object] | None = None) -> None:
             producer.start()
 
         def _on_step(self) -> bool:
@@ -83,7 +102,7 @@ def sentinel_callback(*, out_path: Path | str, task: str, seed: str,
                       emit_every_steps: int = 2048, defer_seconds: float = 0.0,
                       producer_kwargs: Mapping[str, Any] | None = None) -> Any:
     """Create a ready-to-use SB3 callback (requires stable-baselines3 >= 2.0)."""
-    callbacks = _require("stable_baselines3.common.callbacks", "stable-baselines3>=2.0")
+    callbacks = require_module("stable_baselines3.common.callbacks", "stable-baselines3>=2.0")
     producer = SentinelProducer.from_env(out_path=Path(out_path), task=task, seed=seed,
                                          planned_steps=planned_steps,
                                          **(producer_kwargs or {}))

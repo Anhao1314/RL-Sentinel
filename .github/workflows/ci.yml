@@ -29,6 +29,8 @@ jobs:
         run: python -m pytest tests_v2/ tests_agent/ -q --junitxml=core-junit.xml
       - name: Required strict-core type gate
         run: python -m pyright --project pyright-core.json
+      - name: Required agent-layer type gate
+        run: python -m pyright --project pyright-agent.json
       - name: Controlled RL and future-mutation experiments
         run: python scripts/validate_reliability_v2.py --out artifacts/reliability-v2
       - uses: actions/upload-artifact@v4

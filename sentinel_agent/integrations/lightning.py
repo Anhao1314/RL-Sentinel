@@ -15,19 +15,11 @@ from rl_risk_replay.events import ContractError
 
 from ..producer import SentinelProducer
 from .forwarding import MetricForwarder
-from .sb3 import _require
+from .sb3 import require_module
 
 DEFAULT_LIGHTNING_METRIC_MAP: Mapping[str, str] = {
     "train_loss": "value_loss",
 }
-
-
-def _planned_steps(trainer: Any, fallback: int) -> int:
-    max_steps = getattr(trainer, "max_steps", -1)
-    try:
-        return int(max_steps) if max_steps not in (None, -1) else int(fallback)
-    except (TypeError, ValueError):
-        return int(fallback)
 
 
 def build_lightning_callback(base: type, *, producer: SentinelProducer,
@@ -65,9 +57,9 @@ def sentinel_lightning_callback(*, out_path: Path | str, task: str, seed: str,
             "planned_steps is required for the start event; pass trainer.max_steps "
             "or an explicit budget")
     try:
-        base = _require("lightning.pytorch", "lightning>=2.0").Callback
+        base = require_module("lightning.pytorch", "lightning>=2.0").Callback
     except ContractError:
-        base = _require("pytorch_lightning", "lightning>=2.0").Callback
+        base = require_module("pytorch_lightning", "lightning>=2.0").Callback
     producer = SentinelProducer.from_env(out_path=Path(out_path), task=task, seed=seed,
                                          planned_steps=planned_steps,
                                          **(producer_kwargs or {}))

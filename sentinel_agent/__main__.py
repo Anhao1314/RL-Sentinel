@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import sys
 from pathlib import Path
+from typing import cast
 
 from rl_risk_replay.events import canonical
 from rl_risk_replay.policy import rules_manifest
@@ -134,11 +135,13 @@ def selftest(out: Path) -> dict[str, object]:
         replay_file(agent, preempt_path)
         replay_file(agent, resume_path)
         state = agent.snapshot()
-        resilience = {
+        runs_view = cast("dict[str, dict[str, object]]", state["runs"])
+        resume = runs_view["selftest-resume"]
+        resilience: dict[str, object] = {
             "preemptions_total": agent.counters()["preemptions"],
             "steps_lost_total": agent.counters()["steps_lost"],
-            "resumed_attempt": state["runs"]["selftest-resume"]["attempt"],
-            "resumed_after_cancel": state["runs"]["selftest-resume"]["resumed_after_cancelled"],
+            "resumed_attempt": resume["attempt"],
+            "resumed_after_cancel": bool(resume["resumed_after_cancelled"]),
         }
         assert agent.evaluate() == []  # cancelled and resumed runs are finished: no alerts
 

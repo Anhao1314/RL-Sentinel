@@ -10,9 +10,9 @@
 - 命名历史：RL Sentinel / rl_risk_replay / 发行包名 rl-training-risk-replay（pyproject.toml）/
   CLI 名 rl-risk。
 
-## [Unreleased]
+## [0.4.0] - 2026-11-06
 
-### 新增（训练平台层，v0.4 方向，2026-11-06）
+### 新增（训练平台层，2026-11-06）
 
 - 【新增】`sentinel_agent/`：staleness-aware 训练守护层。严格核心 `rl_risk_replay/` 与既有结论
   零改动；事件仍由 schema-v2 契约逐条校验，agent 拒绝契约外数据（`sentinel_events_invalid_total`）。
@@ -45,7 +45,9 @@
   本机复现命令与边界见 CLAIMS）。
 - 登记声明 `agent.hang-demo.staleness`（verified）：`python -m sentinel_agent selftest` 以虚拟时钟
   确定性复现「最后指标看似健康 → 静默告警 → 数据恢复后重置 → finish 后不再告警」全链路。
-- CI：strict-core job 增跑 `tests_agent/`；ruff 门禁覆盖 `sentinel_agent`、`tests_agent`。
+- CI：strict-core job 增跑 `tests_agent/`；ruff 门禁覆盖 `sentinel_agent`、`tests_agent`；
+  新增 `pyright-agent.json`——守护层同样受 pyright strict 强制（`_Handler.agent` 以只读
+  property 窄化 server 类型，零 type-ignore）。
 
 ### 状态同步与文档更正（2026-11-05）
 

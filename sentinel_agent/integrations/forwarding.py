@@ -44,21 +44,23 @@ class MetricForwarder:
         if self._last_emitted_step is not None and step <= self._last_emitted_step:
             self.skipped_repeats += 1
             return None
-        payload: dict[str, object] = {}
+        payload: dict[str, float] = {}
         for source_key, target_key in self.metric_map.items():
             value = source_metrics.get(source_key)
             if value is None:
                 continue
             try:
-                number = float(value)  # tensors/numpy scalars reduce here
+                # Duck-typed on purpose: 0-dim tensors and numpy scalars reduce
+                # to float; multi-element tensors raise and are not telemetry.
+                number = float(value)  # pyright: ignore[reportArgumentType]
             except (TypeError, ValueError):
-                continue  # multi-element tensors and friends are not telemetry
+                continue
             if not math.isfinite(number):
                 continue
             payload[target_key] = number
         if not payload:
             self.skipped_empty += 1
             return None
-        event = self.producer.sample(step, defer_seconds=self.defer_seconds, **payload)
+        event = self.producer.sample(step, defer_seconds=self.defer_seconds, **payload)  # pyright: ignore[reportArgumentType]
         self._last_emitted_step = step
         return event

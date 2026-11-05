@@ -18,6 +18,8 @@ RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息�
 > **当前状态：** 本仓库是「RL 实验时间正确性回放」的冻结参考实现，不是生产早停系统。原目标「预测训练结果并决定是否止损」已退役，而非达成——原因见 [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md)；恢复效果验证的判据见 [RESTART.md](RESTART.md)；历史凭据事件见 [SECURITY.md](SECURITY.md)。另见 [CHANGELOG.md](CHANGELOG.md) 与 [LICENSE](LICENSE)。
 >
 > 自 v0.3.0 起，v1 模块、265 个历史测试与 142 份数据产物已移至 [`archive/v1` 分支](ARCHIVE.md)；main 只保留参考实现与一份 SHA-256 [产物清单](data/manifest.json)。项目**有意不改写** git 历史，理由见 [ADR 0002](docs/adr/0002-no-git-history-rewrite.md)。
+>
+> 自 v0.4.0 起，main 额外承载 **staleness 感知的守护层**（`sentinel_agent/`）：producer SDK、框架适配器、带操作台的在线 agent 与抢占/续跑证据。上述严格核心保持冻结且仅提供建议；守护层只观察真实训练循环，从不触碰。
 
 历史上两套不同算法都叫 `rules-v2`（严格回放策略与 cohort 回测策略）。现在它们统一定义在 `rl_risk_replay/policy.py`，各自带唯一 ID：`rules-v2/strict-replay@1` 与 `rules-v2/cohort-backtest@1`。引用任何数字时请给出 rule ID，不要只写旧显示名。
 

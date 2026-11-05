@@ -18,6 +18,8 @@ RL Sentinel records what a reinforcement-learning run actually knew at each chec
 > **Current status:** this repository is a frozen reference implementation for time-correct RL experiment replay, not a production early-stopping system. The original "predict the outcome and stop training" goal has been retired, not achieved — see [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md), [RESTART.md](RESTART.md) for the conditions required to resume effect validation, and [SECURITY.md](SECURITY.md) for a historical credential incident. See also [CHANGELOG.md](CHANGELOG.md) and [LICENSE](LICENSE).
 >
 > Since v0.3.0 the v1 modules, 265 historical tests and 142 data artifacts live on the [`archive/v1` branch](ARCHIVE.md); main keeps the reference implementation plus a SHA-256 [artifact manifest](data/manifest.json). Git history is deliberately **not** rewritten — see [ADR 0002](docs/adr/0002-no-git-history-rewrite.md).
+>
+> Since v0.4.0, main also hosts a **staleness-aware watchdog layer** (`sentinel_agent/`): a producer SDK, framework adapters, and a live agent with an operator console and preemption/resume evidence. The strict core above remains frozen and recommendation-only; the watchdog layer observes real training loops and never touches them.
 
 Two different algorithms used to be reported under the name `rules-v2`: the strict replay policy and the cohort backtest policy. They are now defined in one place (`rl_risk_replay/policy.py`) and carry distinct machine-readable IDs (`rules-v2/strict-replay@1` and `rules-v2/cohort-backtest@1`). Always cite the rule ID, not the legacy display name, when quoting a number.
 

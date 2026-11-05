@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import os
 import signal
-from collections.abc import Iterator, Sequence
+import types
+from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
+from typing import Any
 
 from rl_risk_replay.events import ContractError
 
@@ -25,13 +27,13 @@ from .producer import SentinelProducer
 
 
 def make_preemption_handler(producer: SentinelProducer, signum: int, *,
-                            rekill: bool = True):
+                            rekill: bool = True) -> Callable[[int, types.FrameType | None], None]:
     """Build a signal handler that cancels the run, then re-applies the kill.
 
     ``rekill=False`` is for tests and embedders that want to keep control of
     process exit.
     """
-    def handler(received: int, frame: object) -> None:
+    def handler(received: int, frame: types.FrameType | None) -> None:
         try:
             producer.finish("cancelled")
         except ContractError:
@@ -46,15 +48,15 @@ def make_preemption_handler(producer: SentinelProducer, signum: int, *,
 
 @contextmanager
 def preemption_guard(producer: SentinelProducer, *,
-                     signals: Sequence[int] | None = None) -> Iterator[SentinelProducer]:
+                     signals: Sequence[int] | None = None) -> Generator[
+                     SentinelProducer, None, None]:
     """Install cancellation handlers for the guarded block; restore on exit.
 
     Restricted environments (non-main threads, exotic platforms) are handled
     by skipping installation rather than failing the training run.
     """
-    chosen = list(signals) if signals is not None else [
-        sig for sig in (signal.SIGTERM, signal.SIGINT) if sig is not None]
-    installed: dict[int, object] = {}
+    chosen = list(signals) if signals is not None else [signal.SIGTERM, signal.SIGINT]
+    installed: dict[int, Any] = {}
     for sig in chosen:
         try:
             installed[sig] = signal.signal(sig, make_preemption_handler(producer, sig))
