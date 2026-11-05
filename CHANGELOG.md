@@ -10,7 +10,29 @@
 - 命名历史：RL Sentinel / rl_risk_replay / 发行包名 rl-training-risk-replay（pyproject.toml）/
   CLI 名 rl-risk。
 
+## [Unreleased]
+
+本次为冻结期内的状态同步与文档更正（2026-11-05），不改变代码、不改写 git 历史。
+
+- 【事实】所有者于 2026-11-05 确认该飞书 webhook 已在飞书侧轮换并停用，历史 URL 不再有效；
+  `.security-allowlist.json` 三条登记的状态由 `recorded-pending-rotation` 改为 `revoked`
+  （已撤销），登记条目与 `audit/secrets.py` 的 `feishu_webhook` 检测规则保留；
+  SECURITY.md、ADR 0001、ADR 0002、RESTART.md、ARCHIVE.md 与 CHANGELOG 状态同步。
+- 【事实】清理残留：5 份 RETIRED 历史文档（PROJECT_CONTEXT.md、PHASE_RECORD.md、
+  QUANT_PLAN.md、DATA_DICTIONARY.md、MATH_LIBRARY.md）中过时的「飞书通知已移除」状态行
+  中性化为「外部通知已移除」，其余正文与 RETIRED 横幅未改动。如实记录：这偏离了 [0.3.0]
+  中「正文一字不改」的声明；该改动属于冻结期允许的「文档更正」，改动范围仅上述 5 行。
+- 【事实】保留 SECURITY.md、ADR 0001 / 0002、`.security-allowlist.json` 与
+  `audit/secrets.py` 的 `feishu_webhook` 检测规则；不改写 git 历史、不删事件记录、
+  不删检测能力。ADR 0002 的不改写历史决策维持，轮换完成后改写收益进一步降低。
+- 【事实】git 历史中的明文值仍可取回（至少 3 个提交、4 次 diff、1 个不同凭据值），但凭据
+  已失效；当前 HEAD 工作树无该值。本仓库没有、也不会清理 git 历史。
+- 【待确认】该 webhook 的调用日志是否已被核查、是否曾被非授权调用；是否另有 allowlist 之外
+  的泄露渠道。仓库与所有者均未提供该信息。
+
 ## [0.3.0] - 2026-11-05
+
+> 后续状态更新见 [Unreleased]。
 
 本版本合并两批改造。第一批（PR #10，main 合并提交 `0e5cf3a`）把仓库定位收敛为
 「RL 实验时间正确性 / 证据链的最小参考实现」，停止按原目标（在线预测 + 建议制止损）

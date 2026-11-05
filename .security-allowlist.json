@@ -1,34 +1,40 @@
 {
   "schema_version": 1,
-  "note": "Explicit, reviewable exceptions for historical findings only. Every entry must name a commit, path, reason and status. New findings are never suppressed. See SECURITY.md.",
+  "note": "Explicit, reviewable exceptions for historical findings only. Every entry must name a commit, path, reason and status. New findings are never suppressed. See SECURITY.md. Status 'revoked' means the owner confirmed the credential itself was rotated and disabled on 2026-11-05; it does NOT mean the plaintext was removed from git history. Entries stay registered because the full-history diffs still contain that value and the detection rule stays active.",
   "distinct_credential_values": 1,
+  "credential_status": "revoked",
+  "revocation_confirmed_at": "2026-11-05",
+  "revocation_scope": "Owner confirmed rotation and disablement of the webhook; the historical URL is no longer a valid credential. Git history was NOT rewritten, so the plaintext remains retrievable. Call-log review, possible unauthorized use and any additional leakage channel are NOT confirmed by this repository. See SECURITY.md and ADR 0002.",
   "entries": [
     {
       "fingerprint": "0f6c5b265ebf4826",
       "commit": "ff837403c0189f2255780a92579677a6f44a58c0",
       "path": "config.json",
       "rule": "feishu_webhook",
-      "status": "recorded-pending-rotation",
-      "reason": "Known historical incident: one Feishu bot webhook URL was committed in plaintext, appears in several commits, and was removed in 647fa892c230f0dab839e977eef1ad0961ddef71. Full-history scanning finds 4 diff hits but only 1 distinct credential value. It remains retrievable from git history and must be rotated/revoked on the Feishu side; rotation is NOT confirmed. See SECURITY.md.",
-      "recorded_at": "2026-11-05"
+      "status": "revoked",
+      "reason": "Known historical incident: one bot webhook URL was committed in plaintext, appears in several commits, and was removed in 647fa892c230f0dab839e977eef1ad0961ddef71. Full-history scanning finds 4 diff hits but only 1 distinct credential value. The owner confirmed on 2026-11-05 that the credential was rotated and disabled, so the historical URL is no longer valid; the plaintext still exists in git history. Entry retained so full-history scanning stays reproducible and the detection rule can catch any recurrence. See SECURITY.md and ADR 0002.",
+      "recorded_at": "2026-11-05",
+      "revocation_confirmed_at": "2026-11-05"
     },
     {
       "fingerprint": "4675885b1b42f7bb",
       "commit": "05a0638aa4e427e5178ed707c615480709d3eccd",
       "path": "config.json",
       "rule": "feishu_webhook",
-      "status": "recorded-pending-rotation",
-      "reason": "Same credential value as the incident above, introduced with the realtime monitor. Full-history view only; a shallow clone does not expose this commit. See SECURITY.md.",
-      "recorded_at": "2026-11-05"
+      "status": "revoked",
+      "reason": "Same (now revoked) credential value as the incident above, introduced with the realtime monitor. Full-history view only; a shallow clone does not expose this commit. Retained for the same reason. See SECURITY.md.",
+      "recorded_at": "2026-11-05",
+      "revocation_confirmed_at": "2026-11-05"
     },
     {
       "fingerprint": "ae0e41ae1f560c0e",
       "commit": "3e9b468baa244b47b7aca6fe1ff9a51996624044",
       "path": "config.json",
       "rule": "feishu_webhook",
-      "status": "recorded-pending-rotation",
-      "reason": "Same credential value as the incident above, in an earlier historical diff. Full-history view only. See SECURITY.md.",
-      "recorded_at": "2026-11-05"
+      "status": "revoked",
+      "reason": "Same (now revoked) credential value as the incident above, in an earlier historical diff. Full-history view only. Retained for the same reason. See SECURITY.md.",
+      "recorded_at": "2026-11-05",
+      "revocation_confirmed_at": "2026-11-05"
     }
   ]
 }
