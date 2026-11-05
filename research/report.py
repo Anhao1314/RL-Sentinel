@@ -12,8 +12,9 @@ import html
 import json
 import math
 import pathlib
-from datetime import datetime, timezone
-from typing import Any, Iterable
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 import pandas as pd
 
@@ -164,9 +165,7 @@ def _sparkline(series: list[dict[str, Any]], metric: str,
             points = [(x, (y - low) / (high - low)) for x, y in points]
         display.append({**item, "points": points})
     values = [point[1] for item in display for point in item["points"]]
-    if metric == "success_rate" and not normalized:
-        min_y, max_y = 0.0, 1.0
-    elif normalized:
+    if metric == "success_rate" and not normalized or normalized:
         min_y, max_y = 0.0, 1.0
     else:
         min_y, max_y = min(values), max(values)
@@ -281,10 +280,9 @@ def render_report(dataset_dir: pathlib.Path, out_dir: pathlib.Path) -> dict[str,
     observed = runs[runs["cohort"] == "observed"].copy()
     legacy = runs[runs["cohort"] == "legacy"].copy()
     observed_panel = panel[panel["cohort"] == "observed"]
-    legacy_panel = panel[panel["cohort"] == "legacy"]
 
     decisions_obs, summary_obs = run_backtest(panel, runs, cohort="observed")
-    decisions_legacy, summary_legacy = run_backtest(panel, runs, cohort="legacy")
+    _, summary_legacy = run_backtest(panel, runs, cohort="legacy")
     factor_obs = summarize_factors(observed_panel, observed)
 
     label_counts = observed["label"].value_counts().to_dict()
@@ -329,7 +327,7 @@ def render_report(dataset_dir: pathlib.Path, out_dir: pathlib.Path) -> dict[str,
         for _, row in legacy.sort_values("run_id").iterrows()
     ]
 
-    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    generated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     version = html.escape(str(manifest["dataset_version"]))
     code = manifest.get("code") or {}
     commit = html.escape(str(code.get("commit") or "unknown")[:12])

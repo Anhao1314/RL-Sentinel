@@ -1,12 +1,21 @@
 """As-of inputs, frozen historical membership, and outcome-separated evaluation."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable, Literal, Protocol
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import Literal, Protocol
 
-from .events import (ContractError, Event, canonical, digest, integer, number,
-                     validate_events)
-from .policy import STRICT_POLICY_NAME, STRICT_RULE_ID, StrictRuleConfig as RuleConfig
+from .events import (
+    ContractError,
+    Event,
+    canonical,
+    digest,
+    integer,
+    number,
+    validate_events,
+)
+from .policy import STRICT_POLICY_NAME, STRICT_RULE_ID
+from .policy import StrictRuleConfig as RuleConfig
 
 Action = Literal["continue", "watch", "stop", "tune", "resize", "abstain"]
 
@@ -73,7 +82,7 @@ class RulePolicy:
     The display name is kept as ``rules-v2`` for reproducible outputs; the
     machine-readable identity is ``rule_id``.
     """
-    config: RuleConfig = RuleConfig()
+    config: RuleConfig = field(default_factory=RuleConfig)
     name: str = STRICT_POLICY_NAME
 
     @property

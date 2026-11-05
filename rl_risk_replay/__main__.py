@@ -9,14 +9,37 @@ from pathlib import Path
 from typing import cast
 
 from .controlled import experiment
-from .engine import (ConstantPolicy, Predictor, Row, RuleConfig, RulePolicy, Timeline,
-                     encode_views)
-from .events import ContractError, Kind, Origin, Scalar, canonical, integer, mapping, number, parse_json
+from .engine import (
+    ConstantPolicy,
+    Predictor,
+    Row,
+    RuleConfig,
+    RulePolicy,
+    Timeline,
+    encode_views,
+)
+from .events import (
+    ContractError,
+    Kind,
+    Origin,
+    Scalar,
+    canonical,
+    integer,
+    mapping,
+    number,
+    parse_json,
+)
 from .legacy_audit import audit_legacy
 from .metrics import summarize
 from .policy import rules_manifest
 from .reporting import bundle_provenance, render_html, runtime_info
-from .storage import EventStore, decode_events, encode_events, publish_bundle, verify_bundle
+from .storage import (
+    EventStore,
+    decode_events,
+    encode_events,
+    publish_bundle,
+    verify_bundle,
+)
 
 
 def rule_config(path: str | None) -> RuleConfig:
@@ -88,7 +111,15 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "verify":
             result = verify_bundle(Path(args.bundle))
         elif args.command == "audit-legacy":
-            result = audit_legacy(Path(args.dataset))
+            dataset = Path(args.dataset)
+            if not dataset.is_dir():
+                raise ContractError(
+                    f"historical dataset not found: {dataset}. The v1 CSV artifacts "
+                    "were archived to the archive/v1 branch in v0.3.0; check out that "
+                    "branch, or pass --dataset pointing at a local copy. "
+                    "See ARCHIVE.md and python -m audit data --root <checkout>."
+                )
+            result = audit_legacy(dataset)
             result["title"] = "历史数据兼容性审计"
             result["runtime"] = runtime_info()
             publish_bundle(Path(args.out), {"results.json": canonical(result) + "\n",

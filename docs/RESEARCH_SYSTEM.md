@@ -144,11 +144,18 @@ Windows run dir → win_job_runner.py snapshot → live snapshot JSON
 
 ## 6. 命令
 
-安装研究依赖：
+安装研究依赖：`pyproject.toml` 是唯一权威声明，`requirements-research.txt` 是钉住版本的 CI 快照。
 
 ```bash
-python -m pip install -r requirements-research.txt
+python -m pip install -e .
+# 或复现 CI 快照：python -m pip install -r requirements-research.txt
 ```
+
+> **归档说明（v0.3.0）**：下文示例中的 `--legacy-data data/datasets` 指向已归档的 v1 CSV 产物，
+> 该路径不再存在于 main。若需要 legacy 队列，请从 `archive/v1` 分支检出并将参数改为
+> `--legacy-data <检出路径>/data/datasets`；不带该参数的构建仍可运行，只是不含 legacy 队列。
+> 142 份产物的 SHA-256 锚点见 [data/manifest.json](../data/manifest.json)，校验方式见
+> [ARCHIVE.md](../ARCHIVE.md) 与 `python -m audit data --root <检出路径>`。
 
 构建版本化数据集：
 

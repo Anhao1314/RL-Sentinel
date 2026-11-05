@@ -1,3 +1,8 @@
+> **RETIRED · 历史记录（v1）** 本文描述的是已归档的第一代系统（在线预测 / 建议制止损 / CSV 分析管线），
+> 不代表本仓库当前定位。当前定位见 [README](README.md)
+> 与 [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md)。
+> 代码与数据已归档至 `archive/v1` 分支，见 [ARCHIVE.md](ARCHIVE.md)。
+
 # 开发约定
 
 - Python/文档 UTF-8 无 BOM，编辑时保留 CRLF；Linux shell 脚本使用 LF。CSV 用 utf-8-sig。

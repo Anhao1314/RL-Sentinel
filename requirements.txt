@@ -1,7 +1,0 @@
-pandas>=2.0
-scikit-learn>=1.4
-tensorboard>=2.18
-numpy>=1.26
-scipy>=1.10
-matplotlib>=3.8
-requests>=2.31

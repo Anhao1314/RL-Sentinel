@@ -4,8 +4,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal, Mapping, cast
+from itertools import pairwise
+from typing import Literal, cast
 
 Kind = Literal["start", "sample", "finish", "label"]
 Origin = Literal["observed", "synthetic", "controlled"]
@@ -189,7 +191,7 @@ def validate_events(events: tuple[Event, ...]) -> tuple[Event, ...]:
         samples = sorted((e for e in records if e.kind == "sample"),
                          key=lambda e: (e.event_time, e.event_id))
         steps = [integer(e.payload()["step"], "step") for e in samples]
-        if any(b <= a for a, b in zip(steps, steps[1:])):
+        if any(b <= a for a, b in pairwise(steps)):
             raise ContractError(f"{run_id}: sample steps must strictly increase in event time; new attempt needs new run_id")
         labels = [e for e in records if e.kind == "label"]
         keys = [(e.available_at, e.payload()["source"]) for e in labels]

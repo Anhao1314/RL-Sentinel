@@ -16,12 +16,14 @@ RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息�
 > 只输出本地建议，不自动停止训练。受控实验证明的是工作流，不是生产环境的早停效果。
 
 > **当前状态：** 本仓库是「RL 实验时间正确性回放」的冻结参考实现，不是生产早停系统。原目标「预测训练结果并决定是否止损」已退役，而非达成——原因见 [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md)；恢复效果验证的判据见 [RESTART.md](RESTART.md)；历史凭据事件见 [SECURITY.md](SECURITY.md)。另见 [CHANGELOG.md](CHANGELOG.md) 与 [LICENSE](LICENSE)。
+>
+> 自 v0.3.0 起，v1 模块、265 个历史测试与 142 份数据产物已移至 [`archive/v1` 分支](ARCHIVE.md)；main 只保留参考实现与一份 SHA-256 [产物清单](data/manifest.json)。项目**有意不改写** git 历史，理由见 [ADR 0002](docs/adr/0002-no-git-history-rewrite.md)。
 
 历史上两套不同算法都叫 `rules-v2`（严格回放策略与 cohort 回测策略）。现在它们统一定义在 `rl_risk_replay/policy.py`，各自带唯一 ID：`rules-v2/strict-replay@1` 与 `rules-v2/cohort-backtest@1`。引用任何数字时请给出 rule ID，不要只写旧显示名。
 
 ![RL Sentinel 研究报告](docs/assets/research-report-preview.png)
 
-*报告来自当前 Go2W 数据集：18 条 observed run（6 pass / 12 fail）+ 48 条 legacy/offline run。Observed readiness 为 `candidate_for_external_validation`；规则回测仍漏掉大部分失败。*
+*v0.2 冻结研究报告，来自 Go2W 数据集：18 条 observed run（6 pass / 12 fail）+ 48 条 legacy/offline run。Observed readiness 为 `candidate_for_external_validation`；规则回测仍漏掉大部分失败。底层产物已归档至 `archive/v1`，无法在 main 上复现，见 [ARCHIVE.md](ARCHIVE.md)。*
 
 ## 为什么需要它
 
@@ -42,7 +44,7 @@ RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息�
 | **严格核心**（`rl_risk_replay/`） | 事件合同、as-of 回放、决策策略、证据包。仅使用标准库。 | SQLite、JSON、单文件 HTML |
 | **研究层**（`research/`） | 版本化数据集、checkpoint 因子、cohort 回测、静态研究报告、Live 页面。 | Parquet、DuckDB、HTML |
 | **生产者适配** | SB3 callback 与 Go2W run 输出。 | `events.jsonl`、快照 JSON |
-| **历史路径**（`legacy/` 与根目录模块） | 旧的 CSV 分析流程，保留用于审计。 | CSV、Markdown |
+| **已归档 v1**（`archive/v1` 分支，不在 main） | 旧的 CSV 分析流程，保留可检出但已退役。 | CSV、Markdown、内容哈希[清单](data/manifest.json) |
 
 <a id="architecture"></a>
 ## 架构
@@ -166,7 +168,7 @@ Rules-v2 识别了 6 次后期策略清空失败，却漏掉全部 6 次关闭�
 
 ### Observed Go2W matrix（2026-10-19）
 
-当前数据集 `5fd1ca77bcbf4230` 包含 **18 条 observed run（6 pass / 12 fail）** + 48 条 legacy/offline run。Readiness 为 `candidate_for_external_validation`：样本量已经足够进入策略讨论，但还不足以声称生产有效。
+v0.2 冻结数据集 `5fd1ca77bcbf4230` 包含 **18 条 observed run（6 pass / 12 fail）** + 48 条 legacy/offline run。Readiness 为 `candidate_for_external_validation`：样本量已经足够进入策略讨论，但还不足以声称生产有效。这些是历史记录数字，不是 main 上可复现的计算：底层产物在 `archive/v1`，该结论在 [CLAIMS.json](CLAIMS.json) 中登记为 `unverified`。
 
 - Pass 组：1 条 full-budget run、2 条意外通过的 short-budget/no-BC pilot，以及 3 条 full-budget seeds。
 - Fail 组：12 条 zero-S0 消融 run。高层接口不变，但低层控制器输出零命令，机器人无法前进。
@@ -190,34 +192,36 @@ Rules-v2 识别了 6 次后期策略清空失败，却漏掉全部 6 次关闭�
 ## 开发与验证
 
 ```bash
-# 严格核心
-python -m pip install -r requirements-core-dev.txt
-python -m pytest tests_v2 -q
+python -m pip install -e .                 # pyproject.toml 是唯一依赖声明源
+python -m pip install -r requirements-core-dev.txt   # 钉住版本的 CI 快照
+python -m pytest tests_v2 tests_research -q
 python -m pyright --project pyright-core.json
 
-# 研究层
-python -m pip install -r requirements-research.txt
-python -m pytest tests_research -q
-
-# 历史回归
-python -m pip install -r requirements-dev.txt
-python -m pytest tests -q
+# 仓库自审计（全部必须返回 0）
+python -m audit claims --verify
+python -m audit rules
+python -m audit deps
+python -m audit secrets
+python -m audit data --root <archive/v1 的检出路径>
+python -m ruff check rl_risk_replay research audit contracts tests_v2 tests_research scripts
 ```
 
-严格核心的类型门槛只覆盖 `rl_risk_replay/`；研究层与历史模块不在该强制门槛内。
+严格核心的类型门槛只覆盖 `rl_risk_replay/`；研究层参与测试与 lint，但不在强制类型门槛内。v1 回归套件（`tests/`，265 个测试）随其覆盖的代码一并退役，保留在 `archive/v1`；`python -m audit data --root` 用钉住的清单校验归档产物未被改动。
 
 <a id="repository-map"></a>
 ## 仓库地图
 
 | 路径 | 内容 |
 | --- | --- |
-| `rl_risk_replay/` | 严格事件合同、as-of 回放、策略、证据包 |
+| `rl_risk_replay/` | 严格事件合同、as-of 回放、单一规则源、证据包 |
 | `research/` | 数据集、因子、回测、静态报告、Live 页面 |
-| `tests_v2/` | 严格核心单元测试与对抗测试 |
-| `tests_research/` | 数据集、因子、回测与报告测试 |
-| `docs/` | 协议、研究系统、验收记录、使用指南 |
-| `legacy/` | 归档的 CSV 分析路径 |
-| 根目录模块 | 历史量化分析与 dashboard |
+| `audit/` | 自审计 CLI：结论台账、规则、凭据、依赖、归档、环境 |
+| `contracts/` | 可移植时间隔离契约，配故意泄漏的负对照 |
+| `tests_v2/` | 严格核心单元、对抗与归档门禁测试 |
+| `tests_research/` | 数据集、因子、回测、as-of 与报告测试 |
+| `data/manifest.json` | 142 份归档产物的 SHA-256 锚点 |
+| `docs/` | 协议、研究系统、ADR、验收记录、使用指南 |
+| `ARCHIVE.md` | 移入 `archive/v1` 分支的全部内容索引 |
 
 <a id="documentation"></a>
 ## 文档

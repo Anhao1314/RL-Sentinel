@@ -159,7 +159,7 @@ def compute_checkpoint_factors(
             int((segment.dropna().diff().iloc[1:] != 0).sum())
             if len(segment.dropna()) > 1 else 0
         ),
-        "sample_count": int(len(visible)),
+        "sample_count": len(visible),
         "eval_success_rate_last": _finite(eval_success.iloc[-1]) if len(eval_success) else None,
         "eval_success_rate_slope": _slope(evals["timesteps"], eval_success) if len(eval_success) else None,
         "eval_mean_reward_last": _finite(eval_reward.iloc[-1]) if len(eval_reward) else None,
@@ -252,8 +252,8 @@ def summarize_factors(panel: pd.DataFrame, runs: pd.DataFrame) -> pd.DataFrame:
                 "source": spec.source,
                 "checkpoint": float(checkpoint),
                 "coverage": float(len(values) / len(group)) if len(group) else 0.0,
-                "n": int(len(values)),
-                "n_labeled": int(len(labeled)),
+                "n": len(values),
+                "n_labeled": len(labeled),
                 "mean": float(values.mean()) if len(values) else None,
                 "std": float(values.std(ddof=0)) if len(values) > 1 else None,
                 "ic_pass": None,

@@ -7,7 +7,7 @@ import json
 import pathlib
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import duckdb
@@ -28,7 +28,7 @@ DEFAULT_CHECKPOINTS = CHECKPOINTS
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def canonical(value: object) -> str:
@@ -441,7 +441,7 @@ def build_dataset(
         "factor_version": FACTOR_VERSION,
         "checkpoints": list(checkpoints),
         "code": revision,
-        "n_runs": int(len(runs_frame)),
+        "n_runs": len(runs_frame),
         "n_observed": int((runs_frame["cohort"] == "observed").sum()),
         "n_legacy": int((runs_frame["cohort"] == "legacy").sum()),
         "n_labeled": int(runs_frame["label"].isin(["pass", "fail"]).sum()),
@@ -452,11 +452,11 @@ def build_dataset(
             "legacy": str(legacy_data.resolve()) if legacy_data else None,
         },
         "limitations": [
-            "Legacy CSV runs have no event-level available_at timestamps; they are "
-            "reported as an offline cohort, not strict as-of evidence.",
+            ("Legacy CSV runs have no event-level available_at timestamps; they are "
+             "reported as an offline cohort, not strict as-of evidence."),
             "Labels are targets for scoring and are never factor inputs.",
-            "This dataset version hashes run inputs and research source; it is not "
-            "a cryptographic signature.",
+            ("This dataset version hashes run inputs and research source; it is not "
+             "a cryptographic signature."),
         ],
     }
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2,

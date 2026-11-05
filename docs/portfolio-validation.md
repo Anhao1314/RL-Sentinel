@@ -1,3 +1,8 @@
+> **RETIRED · 历史记录（v1）** 本文描述的是已归档的第一代系统（在线预测 / 建议制止损 / CSV 分析管线），
+> 不代表本仓库当前定位。当前定位见 [README](../README.md)
+> 与 [ADR 0001](adr/0001-from-prediction-to-evidence.md)。
+> 代码与数据已归档至 `archive/v1` 分支，见 [ARCHIVE.md](../ARCHIVE.md)。
+
 # Portfolio validation — 2026-09-12
 
 Audited source: 2207ccd85486bcba9382cd8cc63287e4a25270bc. Domain: Go2W RL training logs; not financial-market data.

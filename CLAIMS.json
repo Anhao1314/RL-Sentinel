@@ -50,12 +50,21 @@
       }
     },
     {
+      "id": "archive.artifact-count",
+      "statement": "main pins exactly 142 archived v1 artifacts in data/manifest.json as a content-addressed provenance anchor.",
+      "status": "verified",
+      "denominator": "length of manifest.files; bodies are verified separately by 'python -m audit data --root <archive/v1 checkout>' in CI",
+      "boundary": "A hash anchor only. It does not make the archived CSVs usable for strict replay: they have no available_at field, and strict-replay-eligible historical runs remain 0. It says nothing about producer authenticity or effect validity.",
+      "source": {"module": "audit.data", "callable": "load_manifest"},
+      "check": {"path": "files", "length_equals": 142}
+    },
+    {
       "id": "research.observed-cohort-size",
-      "statement": "18 observed runs (6 pass / 12 fail) plus 48 legacy/offline runs are referenced by the research note.",
+      "statement": "18 observed runs (6 pass / 12 fail) plus 48 legacy/offline runs are referenced by the frozen v0.2 research note.",
       "status": "unverified",
-      "denominator": "README quotation of a data/ snapshot that is not hash-pinned",
+      "denominator": "Recorded figure from a historical Go2W data snapshot; the 142 artifact bodies are archived on archive/v1 and hash-pinned in data/manifest.json, but the cohort statistic itself is not recomputed",
       "boundary": "One trainer only; all 12 observed failures are zero-S0 controlled ablations; legacy CSV has no available_at timestamp and cannot enter strict replay.",
-      "blocker": "Not reproducible from this repository with a stdlib command: requires the external Go2W dataset, the DuckDB research layer, and a pinned data snapshot. Do not cite as a validated effect."
+      "blocker": "Not reproducible from this repository with a stdlib command: requires the external Go2W dataset and the DuckDB research layer over an archive/v1 checkout. Do not cite as a validated effect."
     },
     {
       "id": "v1.saved-yuan-compute",

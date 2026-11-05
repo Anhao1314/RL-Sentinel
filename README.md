@@ -16,12 +16,14 @@ RL Sentinel records what a reinforcement-learning run actually knew at each chec
 > RL Sentinel produces local recommendations only. It does not stop training automatically. The controlled experiment demonstrates a workflow, not production early-stop effectiveness.
 
 > **Current status:** this repository is a frozen reference implementation for time-correct RL experiment replay, not a production early-stopping system. The original "predict the outcome and stop training" goal has been retired, not achieved — see [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md), [RESTART.md](RESTART.md) for the conditions required to resume effect validation, and [SECURITY.md](SECURITY.md) for a historical credential incident. See also [CHANGELOG.md](CHANGELOG.md) and [LICENSE](LICENSE).
+>
+> Since v0.3.0 the v1 modules, 265 historical tests and 142 data artifacts live on the [`archive/v1` branch](ARCHIVE.md); main keeps the reference implementation plus a SHA-256 [artifact manifest](data/manifest.json). Git history is deliberately **not** rewritten — see [ADR 0002](docs/adr/0002-no-git-history-rewrite.md).
 
 Two different algorithms used to be reported under the name `rules-v2`: the strict replay policy and the cohort backtest policy. They are now defined in one place (`rl_risk_replay/policy.py`) and carry distinct machine-readable IDs (`rules-v2/strict-replay@1` and `rules-v2/cohort-backtest@1`). Always cite the rule ID, not the legacy display name, when quoting a number.
 
 ![RL Sentinel research report](docs/assets/research-report-preview.png)
 
-*Research note generated from the current Go2W dataset: 18 observed runs (6 pass / 12 fail) plus 48 legacy/offline runs. Observed readiness is `candidate_for_external_validation`; the rule backtest still misses most failures.*
+*Frozen v0.2 research note from the Go2W dataset: 18 observed runs (6 pass / 12 fail) plus 48 legacy/offline runs. Observed readiness is `candidate_for_external_validation`; the rule backtest still misses most failures. The underlying artifacts are archived on `archive/v1` and are not reproducible from main — see [ARCHIVE.md](ARCHIVE.md).*
 
 ## Why this exists
 
@@ -41,7 +43,7 @@ Labels are used for scoring only. They are never factor inputs.
 | **Strict core** (`rl_risk_replay/`) | Event contract, as-of replay, decision policies, evidence bundles. Stdlib only. | SQLite, JSON, self-contained HTML |
 | **Research layer** (`research/`) | Versioned dataset, checkpoint factors, cohort backtest, static research note, live page. | Parquet, DuckDB, HTML |
 | **Producer adapters** | SB3 callback and Go2W run output. | `events.jsonl`, snapshot JSON |
-| **Historical path** (`legacy/` and root modules) | Older CSV-based analyses, preserved for audit. | CSV, Markdown |
+| **Archived v1** (`archive/v1` branch, off main) | Older CSV-based analyses, preserved for audit but retired. | CSV, Markdown, content-hash [manifest](data/manifest.json) |
 
 ## Architecture
 
@@ -164,7 +166,7 @@ Zero false stops among six successful runs does **not** establish a zero populat
 
 ### Observed Go2W matrix (2026-10-19)
 
-The current dataset `5fd1ca77bcbf4230` contains **18 observed runs (6 pass / 12 fail)** plus 48 legacy/offline runs. Readiness is `candidate_for_external_validation`: the cohort is now large enough for the gate, but not enough to claim operational effectiveness.
+The frozen v0.2 dataset `5fd1ca77bcbf4230` contains **18 observed runs (6 pass / 12 fail)** plus 48 legacy/offline runs. Readiness is `candidate_for_external_validation`: the cohort is now large enough for the gate, but not enough to claim operational effectiveness. These are recorded historical figures, not a reproducible computation on main: the underlying artifacts are on `archive/v1`, and the claim is registered as `unverified` in [CLAIMS.json](CLAIMS.json).
 
 - Pass group: one full-budget run, two short-budget/no-BC pilots that unexpectedly passed, and three full-budget seeds.
 - Fail group: twelve zero-S0 ablation runs. The high-level interface is unchanged, but the low-level controller emits zero commands, so the robot cannot make progress.
@@ -186,33 +188,35 @@ Top checkpoint factor ICs are high (`value_loss_last` 0.87, `kl_last` 0.85, `pro
 ## Development
 
 ```bash
-# strict core
-python -m pip install -r requirements-core-dev.txt
-python -m pytest tests_v2 -q
+python -m pip install -e .                 # pyproject.toml is the single dependency source
+python -m pip install -r requirements-core-dev.txt   # pinned CI snapshot
+python -m pytest tests_v2 tests_research -q
 python -m pyright --project pyright-core.json
 
-# research layer
-python -m pip install -r requirements-research.txt
-python -m pytest tests_research -q
-
-# historical regression
-python -m pip install -r requirements-dev.txt
-python -m pytest tests -q
+# repository self-audit (all must exit 0)
+python -m audit claims --verify
+python -m audit rules
+python -m audit deps
+python -m audit secrets
+python -m audit data --root <checkout of archive/v1>
+python -m ruff check rl_risk_replay research audit contracts tests_v2 tests_research scripts
 ```
 
-The strict-core type gate covers `rl_risk_replay/`. The research layer and historical modules are not part of that required gate.
+The strict-core type gate covers `rl_risk_replay/`. The research layer is linted and tested but is not part of the required strict type gate. The v1 regression suite (`tests/`, 265 tests) was retired with the code it covered and remains on `archive/v1`; `python -m audit data --root` verifies that the archived artifacts still match the pinned manifest.
 
 ## Repository map
 
 | Path | Contents |
 | --- | --- |
-| `rl_risk_replay/` | Strict event contract, as-of replay, policies, evidence bundles |
+| `rl_risk_replay/` | Strict event contract, as-of replay, single rule source, evidence bundles |
 | `research/` | Dataset, factors, backtest, static report, live page |
-| `tests_v2/` | Strict-core unit and adversarial tests |
-| `tests_research/` | Dataset, factor, backtest and report tests |
-| `docs/` | Protocol, research system, validation records, getting started |
-| `legacy/` | Archived CSV-based analysis path |
-| root modules | Historical quantitative analysis and dashboard |
+| `audit/` | Self-audit CLI: registered claims, rules, secrets, dependencies, archive, environment |
+| `contracts/` | Portable time-isolation contract with deliberate leaking negative controls |
+| `tests_v2/` | Strict-core unit, adversarial and archive-gate tests |
+| `tests_research/` | Dataset, factor, backtest, as-of and report tests |
+| `data/manifest.json` | SHA-256 anchor for the 142 archived artifacts |
+| `docs/` | Protocol, research system, ADRs, validation records, getting started |
+| `ARCHIVE.md` | Index of everything moved to the `archive/v1` branch |
 
 ## Documentation
 

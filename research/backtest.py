@@ -18,7 +18,8 @@ from typing import Any
 
 import pandas as pd
 
-from rl_risk_replay.policy import COHORT_POLICY_NAME, COHORT_RULE_ID, CohortRuleConfig as RuleConfig
+from rl_risk_replay.policy import COHORT_POLICY_NAME, COHORT_RULE_ID
+from rl_risk_replay.policy import CohortRuleConfig as RuleConfig
 
 POLICIES = ("rules-v2", "always-continue", "always-stop")
 READINESS_PASS_FLOOR = 5
@@ -178,12 +179,12 @@ def run_backtest(
                        else f"constant/{policy}@1",
             "checkpoint": float(checkpoint),
             "cohort": cohort,
-            "n_total": int(len(group)),
-            "n_labeled": int(len(labeled)),
-            "n_strict_asof": int(len(strict)),
+            "n_total": len(group),
+            "n_labeled": len(labeled),
+            "n_strict_asof": len(strict),
             "n_degraded_asof": int(len(labeled) - len(strict)),
-            "n_pass": int(len(pass_rows)),
-            "n_fail": int(len(fail_rows)),
+            "n_pass": len(pass_rows),
+            "n_fail": len(fail_rows),
             "n_unknown": int((group["label"] == "unknown").sum()),
             "n_decided": decided,
             "n_abstained": abstained,
