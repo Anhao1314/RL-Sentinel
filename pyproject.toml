@@ -10,6 +10,8 @@ requires-python = ">=3.12"
 dependencies = []
 
 [project.optional-dependencies]
+# pyproject.toml is the single authoritative dependency declaration.  The
+# requirements*.txt files are CI snapshots kept for the legacy regression job.
 research = [
   "duckdb>=1.1",
   "pandas>=2.0",
@@ -18,10 +20,19 @@ research = [
   "scipy>=1.10",
   "scikit-learn>=1.4",
 ]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=5",
+  "pyright>=1.1.380",
+  "ruff>=0.6",
+  "requests>=2.31",
+  "matplotlib>=3.8",
+  "tensorboard>=2.16",
+]
 
 [project.scripts]
 rl-risk = "rl_risk_replay.__main__:main"
 rl-research = "research.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["rl_risk_replay*", "research*"]
+include = ["rl_risk_replay*", "research*", "audit*", "contracts*"]

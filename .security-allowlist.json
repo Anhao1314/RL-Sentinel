@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "note": "Explicit, reviewable exceptions for historical findings only. Every entry must name a commit, path, reason and status. New findings are never suppressed. See SECURITY.md.",
+  "entries": [
+    {
+      "fingerprint": "0f6c5b265ebf4826",
+      "commit": "ff837403c0189f2255780a92579677a6f44a58c0",
+      "path": "config.json",
+      "rule": "feishu_webhook",
+      "status": "recorded-pending-rotation",
+      "reason": "Known historical incident: a Feishu bot webhook URL was committed in plaintext and removed in 647fa892c230f0dab839e977eef1ad0961ddef71. The value is still retrievable from git history; it must be rotated/revoked on the Feishu side. Rotation status is NOT confirmed by this repository. See SECURITY.md.",
+      "recorded_at": "2026-11-05"
+    }
+  ]
+}

@@ -15,6 +15,10 @@ RL Sentinel 记录强化学习训练在每个 checkpoint 真正可见的信息�
 
 > 只输出本地建议，不自动停止训练。受控实验证明的是工作流，不是生产环境的早停效果。
 
+> **当前状态：** 本仓库是「RL 实验时间正确性回放」的冻结参考实现，不是生产早停系统。原目标「预测训练结果并决定是否止损」已退役，而非达成——原因见 [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md)；恢复效果验证的判据见 [RESTART.md](RESTART.md)；历史凭据事件见 [SECURITY.md](SECURITY.md)。另见 [CHANGELOG.md](CHANGELOG.md) 与 [LICENSE](LICENSE)。
+
+历史上两套不同算法都叫 `rules-v2`（严格回放策略与 cohort 回测策略）。现在它们统一定义在 `rl_risk_replay/policy.py`，各自带唯一 ID：`rules-v2/strict-replay@1` 与 `rules-v2/cohort-backtest@1`。引用任何数字时请给出 rule ID，不要只写旧显示名。
+
 ![RL Sentinel 研究报告](docs/assets/research-report-preview.png)
 
 *报告来自当前 Go2W 数据集：18 条 observed run（6 pass / 12 fail）+ 48 条 legacy/offline run。Observed readiness 为 `candidate_for_external_validation`；规则回测仍漏掉大部分失败。*

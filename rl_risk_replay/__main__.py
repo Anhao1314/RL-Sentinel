@@ -2,17 +2,20 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sqlite3
 import sys
 from pathlib import Path
 from typing import cast
 
 from .controlled import experiment
-from .engine import ConstantPolicy, Predictor, RuleConfig, RulePolicy, Timeline
+from .engine import (ConstantPolicy, Predictor, Row, RuleConfig, RulePolicy, Timeline,
+                     encode_views)
 from .events import ContractError, Kind, Origin, Scalar, canonical, integer, mapping, number, parse_json
 from .legacy_audit import audit_legacy
 from .metrics import summarize
-from .reporting import render_html, runtime_info
+from .policy import rules_manifest
+from .reporting import bundle_provenance, render_html, runtime_info
 from .storage import EventStore, decode_events, encode_events, publish_bundle, verify_bundle
 
 
@@ -89,7 +92,9 @@ def main(argv: list[str] | None = None) -> int:
             result["title"] = "历史数据兼容性审计"
             result["runtime"] = runtime_info()
             publish_bundle(Path(args.out), {"results.json": canonical(result) + "\n",
-                                           "report.html": render_html(result)})
+                                           "report.html": render_html(result)},
+                           provenance=bundle_provenance(input_sha256="N/A", event_count=0,
+                                                        rule_registry=rules_manifest()))
         elif args.command == "experiment":
             result = experiment(Path(args.out), args.seeds)
         else:
@@ -109,18 +114,27 @@ def main(argv: list[str] | None = None) -> int:
                 policies.append(ConstantPolicy(True))
             summaries: list[dict[str, object]] = []
             decisions: list[dict[str, object]] = []
+            all_rows: list[Row] = []
             for policy in policies:
                 for progress in points:
                     rows = timeline.replay(policy, progress, args.evaluation_at)
+                    all_rows.extend(rows)
                     summaries.append({"policy": policy.name, "progress": progress, **summarize(rows, origin)})
-                    decisions.extend(r.to_dict() for r in rows)
+                    decisions.extend(r.to_dict(include_input=False) for r in rows)
+            registry = rules_manifest()
+            stream = encode_events(events, origin)
             result = {"title": "RL 训练时间正确性回放", "origin": origin,
                       "runtime": runtime_info(), "policy_config": config.to_dict(),
-                      "evaluation_at": args.evaluation_at,
+                      "rule_registry": registry, "evaluation_at": args.evaluation_at,
                       "summaries": summaries, "decisions": decisions}
+            provenance = bundle_provenance(
+                input_sha256=hashlib.sha256(stream.encode("utf-8")).hexdigest(),
+                event_count=len(events), rule_registry=registry)
             publish_bundle(Path(args.out), {"results.json": canonical(result) + "\n",
-                                           "events.jsonl": encode_events(events, origin),
-                                           "report.html": render_html(result)})
+                                           "events.jsonl": stream,
+                                           "views.jsonl": encode_views(all_rows),
+                                           "report.html": render_html(result)},
+                           provenance=provenance)
             result = {"output": args.out, "origin": origin, "summaries": summaries}
         print(canonical(result))
         return 0

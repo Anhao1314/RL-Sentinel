@@ -1,16 +1,18 @@
 """Executable tabular Q-learning fault-injection experiment, not Go2W validation."""
 from __future__ import annotations
 
+import hashlib
 import random
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal
 
-from .engine import ConstantPolicy, Predictor, RulePolicy, Timeline
+from .engine import ConstantPolicy, Predictor, Row, RulePolicy, Timeline, encode_views
 from .events import canonical
 from .metrics import summarize
-from .reporting import render_html, runtime_info
+from .policy import rules_manifest
+from .reporting import bundle_provenance, render_html, runtime_info
 from .storage import EventStore, encode_events, publish_bundle
 
 Fault = Literal["none", "learning_disabled", "late_reset"]
@@ -125,20 +127,30 @@ def experiment(destination: Path, seeds: int = 6) -> dict[str, object]:
     timeline = Timeline(events)
     summaries: list[dict[str, object]] = []
     decisions: list[dict[str, object]] = []
+    all_rows: list[Row] = []
     policies: tuple[Predictor, ...] = (RulePolicy(), ConstantPolicy(False), ConstantPolicy(True))
     for policy in policies:
         for progress in (0.3, 0.5, 0.7):
             rows = timeline.replay(policy, progress)
+            all_rows.extend(rows)
             summaries.append({"policy": policy.name, "progress": progress, **summarize(rows, origin)})
-            decisions.extend(r.to_dict() for r in rows)
+            decisions.extend(r.to_dict(include_input=False) for r in rows)
+    registry = rules_manifest()
+    stream = encode_events(events, origin)
     result: dict[str, object] = {"title": "受控 RL 故障注入实验", "protocol": protocol,
-                                "runtime": runtime_info(), "trials": trials,
-                                "summaries": summaries, "decisions": decisions}
-    publish_bundle(destination, {"events.jsonl": encode_events(events, origin),
+                                "runtime": runtime_info(), "rule_registry": registry,
+                                "trials": trials, "summaries": summaries,
+                                "decisions": decisions}
+    provenance = bundle_provenance(
+        input_sha256=hashlib.sha256(stream.encode("utf-8")).hexdigest(),
+        event_count=len(events), rule_registry=registry)
+    publish_bundle(destination, {"events.jsonl": stream,
                                  "results.json": canonical(result) + "\n",
                                  "protocol.json": canonical(protocol) + "\n",
                                  "q_tables.json": canonical(weights) + "\n",
-                                 "report.html": render_html(result)})
+                                 "views.jsonl": encode_views(all_rows),
+                                 "report.html": render_html(result)},
+                   provenance=provenance)
     return {"output": str(destination), "trials": len(trials),
             "passes": sum(t["verdict"] == "pass" for t in trials),
             "failures": sum(t["verdict"] == "fail" for t in trials),
