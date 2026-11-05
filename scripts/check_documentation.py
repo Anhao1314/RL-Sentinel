@@ -127,7 +127,8 @@ def main() -> int:
         bundle = cwd / "artifacts/sentinel-demo"
         members = sorted(p.name for p in bundle.iterdir())
         require(members == sorted(("events.jsonl", "manifest.json", "protocol.json",
-                                   "q_tables.json", "report.html", "results.json")),
+                                   "q_tables.json", "report.html", "results.json",
+                                   "views.jsonl")),
                 "documented experiment output members differ")
         result = json.loads((bundle / "results.json").read_text(encoding="utf-8"))
         protocol = json.loads((bundle / "protocol.json").read_text(encoding="utf-8"))

@@ -15,6 +15,10 @@ RL Sentinel records what a reinforcement-learning run actually knew at each chec
 
 > RL Sentinel produces local recommendations only. It does not stop training automatically. The controlled experiment demonstrates a workflow, not production early-stop effectiveness.
 
+> **Current status:** this repository is a frozen reference implementation for time-correct RL experiment replay, not a production early-stopping system. The original "predict the outcome and stop training" goal has been retired, not achieved — see [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md), [RESTART.md](RESTART.md) for the conditions required to resume effect validation, and [SECURITY.md](SECURITY.md) for a historical credential incident. See also [CHANGELOG.md](CHANGELOG.md) and [LICENSE](LICENSE).
+
+Two different algorithms used to be reported under the name `rules-v2`: the strict replay policy and the cohort backtest policy. They are now defined in one place (`rl_risk_replay/policy.py`) and carry distinct machine-readable IDs (`rules-v2/strict-replay@1` and `rules-v2/cohort-backtest@1`). Always cite the rule ID, not the legacy display name, when quoting a number.
+
 ![RL Sentinel research report](docs/assets/research-report-preview.png)
 
 *Research note generated from the current Go2W dataset: 18 observed runs (6 pass / 12 fail) plus 48 legacy/offline runs. Observed readiness is `candidate_for_external_validation`; the rule backtest still misses most failures.*

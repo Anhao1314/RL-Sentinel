@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import cast
 
 from . import __version__
-from .events import canonical, mapping
+from .events import mapping
 
 
 def runtime_info() -> dict[str, object]:
@@ -24,6 +24,25 @@ def runtime_info() -> dict[str, object]:
     return {"package_version": __version__, "python": platform.python_version(),
             "platform": platform.platform(), "source_revision": revision,
             "worktree_dirty": dirty}
+
+
+def bundle_provenance(*, input_sha256: str, event_count: int,
+                      rule_registry: dict[str, object]) -> dict[str, object]:
+    """Deterministic provenance recorded in every new evidence bundle.
+
+    No wall-clock timestamp is included: identical inputs and code must yield
+    identical manifests.  ``code_revision`` is a claim about the working tree,
+    not a signature; see README's Not established section.
+    """
+    runtime = runtime_info()
+    return {
+        "provenance_schema_version": 1,
+        "code_revision": runtime["source_revision"],
+        "environment": {"python": runtime["python"], "platform": runtime["platform"],
+                        "package_version": runtime["package_version"]},
+        "input_manifest": {"events_sha256": input_sha256, "event_count": event_count},
+        "rule_registry": rule_registry,
+    }
 
 
 def table(raw: object, columns: tuple[str, ...]) -> str:
@@ -44,7 +63,6 @@ def table(raw: object, columns: tuple[str, ...]) -> str:
 
 
 def render_html(result: dict[str, object]) -> str:
-    payload = html.escape(canonical(result))
     title = html.escape(str(result.get("title", "RL Training Reliability")))
     summaries = table(result.get("summaries"), ("policy", "progress", "n_pass", "n_fail",
                        "true_stops", "false_stops", "pass_kill_rate", "fail_recall", "n_abstained", "readiness"))
@@ -63,5 +81,7 @@ summary{{cursor:pointer;font-weight:600;padding:1rem 0}}footer{{border-top:1px s
 </style><h1>{title}</h1><p class="note">仅提供本地建议，不停止训练。合成数据、受控实验与实际部署数据分开标记。
 样本门槛通过也不等于预测有效；剩余墙钟时间不是实际算力节省。比例显示为 0–1，N/A 表示分母不存在。</p>
 <h2>策略对照</h2>{summaries}<h2>训练试验</h2>{trials}<h2>逐次决策与输入标识</h2>{decisions}
-<details><summary>完整机器可读证据（包括每次决策的实际输入）</summary><pre>{payload}</pre></details>
-<footer>完整结果见 results.json；manifest.json 记录文件校验值。离线报告不加载外部脚本。</footer></html>'''
+<p>完整机器可读结果见同目录 <code>results.json</code>；每个决策的 as-of 输入按
+<code>input_sha256</code> 去重存放于 <code>views.jsonl</code>。历史版本曾把全量结果内嵌在本页，
+导致证据包随运行数近似平方增长；本页不再内嵌。</p>
+<footer>manifest.json 记录文件校验值与 provenance。离线报告不加载外部脚本。</footer></html>'''

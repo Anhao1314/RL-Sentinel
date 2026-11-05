@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "note": "Register of outward-facing claims. Verified claims are re-computed by 'python -m audit claims --verify'; any drift fails CI. Unverified and retired claims are never promoted to facts. Denominators and boundaries are mandatory because this repository's subject is honest uncertainty.",
+  "claims": [
+    {
+      "id": "demo.bundle.members",
+      "statement": "The default controlled experiment publishes exactly six evidence files, listed in manifest.json.",
+      "status": "verified",
+      "denominator": "key set of manifest.members",
+      "boundary": "Default --seeds 6 controlled experiment only; not a specification for production bundles. Full as-of inputs live in views.jsonl, keyed by input_sha256.",
+      "reproduce": ["python", "-m", "rl_risk_replay", "experiment", "--out", "{bundle}"],
+      "artifact": "manifest.json",
+      "check": {
+        "path": "members",
+        "keys_equals": ["events.jsonl", "protocol.json", "q_tables.json", "report.html", "results.json", "views.jsonl"]
+      }
+    },
+    {
+      "id": "demo.rules-v2.checkpoint-0.7",
+      "statement": "At the 0.7 checkpoint the rules-v2 strict replay policy yields 6 true stops, 0 false stops and 1 abstention; readiness is blocked.",
+      "status": "verified",
+      "denominator": "18 controlled trials (6 pass / 12 fail); fail_recall uses all 12 failed runs including abstentions",
+      "boundary": "A single 4x4 grid toy scene; all 12 failures are controlled fault injections, not natural failures. This demonstrates a workflow, not production early-stop effectiveness or compute savings.",
+      "rule_id": "rules-v2/strict-replay@1",
+      "reproduce": ["python", "-m", "rl_risk_replay", "experiment", "--out", "{bundle}"],
+      "artifact": "results.json",
+      "check": {
+        "path": "summaries",
+        "match": {"policy": "rules-v2", "progress": 0.7},
+        "equals": {
+          "true_stops": 6,
+          "false_stops": 0,
+          "n_abstained": 1,
+          "n_pass": 6,
+          "n_fail": 12,
+          "readiness": "blocked"
+        }
+      }
+    },
+    {
+      "id": "rules.single-source",
+      "statement": "The two rule profiles are defined once in rl_risk_replay/policy.py under distinct machine-readable IDs.",
+      "status": "verified",
+      "denominator": "key set of rules_manifest()['profiles']",
+      "boundary": "Behaviour is intentionally unchanged from v0.2. This resolves the rules-v2 naming ambiguity; it is not a validation of either policy's effectiveness.",
+      "source": {"module": "rl_risk_replay.policy", "callable": "rules_manifest"},
+      "check": {
+        "path": "profiles",
+        "keys_equals": ["rules-v2/cohort-backtest@1", "rules-v2/strict-replay@1"]
+      }
+    },
+    {
+      "id": "research.observed-cohort-size",
+      "statement": "18 observed runs (6 pass / 12 fail) plus 48 legacy/offline runs are referenced by the research note.",
+      "status": "unverified",
+      "denominator": "README quotation of a data/ snapshot that is not hash-pinned",
+      "boundary": "One trainer only; all 12 observed failures are zero-S0 controlled ablations; legacy CSV has no available_at timestamp and cannot enter strict replay.",
+      "blocker": "Not reproducible from this repository with a stdlib command: requires the external Go2W dataset, the DuckDB research layer, and a pinned data snapshot. Do not cite as a validated effect."
+    },
+    {
+      "id": "v1.saved-yuan-compute",
+      "statement": "saved_yuan_compute estimated monetary compute savings from early stopping.",
+      "status": "retired",
+      "denominator": "v1 estimation formula, not a measurement",
+      "boundary": "The project never claimed realized compute savings; no auditable cost baseline exists.",
+      "blocker": "Retired together with the original prediction goal. See docs/adr/0001-from-prediction-to-evidence.md."
+    }
+  ]
+}

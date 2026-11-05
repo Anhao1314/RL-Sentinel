@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Iterable, Literal, Protocol
 
-from .events import ContractError, Event, digest, integer, number, validate_events
+from .events import (ContractError, Event, canonical, digest, integer, number,
+                     validate_events)
+from .policy import STRICT_POLICY_NAME, STRICT_RULE_ID, StrictRuleConfig as RuleConfig
 
 Action = Literal["continue", "watch", "stop", "tune", "resize", "abstain"]
 
@@ -65,33 +67,18 @@ class Predictor(Protocol):
 
 
 @dataclass(frozen=True)
-class RuleConfig:
-    min_reward_points: int = 3
-    drawdown_stop: float = 0.3
-    kl_watch: float = 0.03
-    kl_tune: float = 0.1
-    memory_resize: float = 95.0
-
-    def __post_init__(self) -> None:
-        integer(self.min_reward_points, "min_reward_points", 2)
-        for key, val in self.to_dict().items():
-            number(val, key, 0)
-        if not 0 < self.drawdown_stop <= 1 or not 0 < self.kl_watch <= self.kl_tune:
-            raise ContractError("invalid rule threshold order/range")
-        if not 0 < self.memory_resize <= 100:
-            raise ContractError("memory_resize must be in (0,100]")
-
-    def to_dict(self) -> dict[str, object]:
-        return {"min_reward_points": self.min_reward_points,
-                "drawdown_stop": self.drawdown_stop, "kl_watch": self.kl_watch,
-                "kl_tune": self.kl_tune, "memory_resize": self.memory_resize}
-
-
-@dataclass(frozen=True)
 class RulePolicy:
-    """Versioned safe-input subset, not a parity claim with all legacy risk rules."""
+    """Versioned safe-input subset, not a parity claim with all legacy risk rules.
+
+    The display name is kept as ``rules-v2`` for reproducible outputs; the
+    machine-readable identity is ``rule_id``.
+    """
     config: RuleConfig = RuleConfig()
-    name: str = "rules-v2"
+    name: str = STRICT_POLICY_NAME
+
+    @property
+    def rule_id(self) -> str:
+        return STRICT_RULE_ID
 
     def __call__(self, view: View) -> Decision:
         rewards = [number(e.payload()["reward"], "reward") for e in view.samples
@@ -132,6 +119,10 @@ class ConstantPolicy:
     def name(self) -> str:
         return "always-stop" if self.stop else "always-continue"
 
+    @property
+    def rule_id(self) -> str:
+        return f"constant/{self.name}@1"
+
     def __call__(self, view: View) -> Decision:
         return Decision("stop" if self.stop else "continue", 0,
                         ("constant control baseline, not a risk estimate",))
@@ -149,13 +140,41 @@ class Row:
     verdict: str
     finish_time: float | None
 
-    def to_dict(self) -> dict[str, object]:
-        return {"run_id": self.run_id, "policy": self.policy, "progress": self.progress,
-                "status": self.status, "reason": self.reason,
-                "input_sha256": self.view.sha256 if self.view else None,
-                "input": self.view.to_dict() if self.view else None,
-                "decision": self.decision.to_dict() if self.decision else None,
-                "evaluation_only": {"verdict": self.verdict, "finish_time": self.finish_time}}
+    def to_dict(self, *, include_input: bool = True) -> dict[str, object]:
+        """Serialize a decision row.
+
+        Full as-of views are large and repeat across policies/checkpoints, so
+        callers publishing a bundle should set ``include_input=False`` and emit
+        the deduplicated views via :func:`encode_views` instead.
+        """
+        result: dict[str, object] = {
+            "run_id": self.run_id, "policy": self.policy, "progress": self.progress,
+            "status": self.status, "reason": self.reason,
+            "input_sha256": self.view.sha256 if self.view else None,
+        }
+        if include_input:
+            result["input"] = self.view.to_dict() if self.view else None
+        result["decision"] = self.decision.to_dict() if self.decision else None
+        result["evaluation_only"] = {"verdict": self.verdict,
+                                     "finish_time": self.finish_time}
+        return result
+
+
+def encode_views(rows: Iterable[Row]) -> str:
+    """Deduplicated JSONL of as-of views, keyed by content hash.
+
+    Keeping views in one member instead of embedding each view in every
+    decision removes the quadratic growth of evidence bundles while preserving
+    byte-for-byte reproducibility of every policy input.
+    """
+    seen: dict[str, dict[str, object]] = {}
+    for row in rows:
+        if row.view is None:
+            continue
+        key = row.view.sha256
+        if key not in seen:
+            seen[key] = {"input_sha256": key, "input": row.view.to_dict()}
+    return "".join(canonical(seen[key]) + "\n" for key in sorted(seen))
 
 
 class Timeline:

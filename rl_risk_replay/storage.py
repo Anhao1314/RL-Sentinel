@@ -12,8 +12,17 @@ from contextlib import closing
 from pathlib import Path
 from typing import Callable, Mapping, cast
 
-from .events import (ContractError, Event, Kind, Origin, Scalar, canonical, make_event,
-                     mapping, number, parse_json, validate_events)
+from .events import (ContractError, Event, Kind, Origin, Scalar, canonical, integer,
+                     make_event, mapping, number, parse_json, validate_events)
+
+# A crashed publisher used to leave an empty O_EXCL lock file forever, making
+# the output directory permanently unusable.  Locks now carry a creation time
+# and can be reclaimed only after this TTL.
+LOCK_TTL_NS = 300 * 1_000_000_000
+PROVENANCE_FIELDS = frozenset({
+    "provenance_schema_version", "code_revision", "environment",
+    "input_manifest", "rule_registry",
+})
 
 
 def encode_events(events: tuple[Event, ...], origin: Origin) -> str:
@@ -138,15 +147,54 @@ class EventStore:
         return event
 
 
-def publish_bundle(destination: Path, files: Mapping[str, str]) -> Path:
-    """Stage and publish one complete directory under a cooperative no-overwrite lock."""
+def _reclaim_stale_lock(lock: Path) -> bool:
+    """Remove only locks older than LOCK_TTL_NS; never touch a live publisher."""
+    try:
+        raw = lock.read_text(encoding="utf-8")
+        created_ns: int | None = None
+        if raw.strip():
+            try:
+                created_ns = integer(mapping(parse_json(raw))["created_ns"], "created_ns")
+            except (ContractError, KeyError, TypeError, ValueError):
+                return False
+        if created_ns is None:
+            # Pre-fix empty lock files left behind by a crashed publisher.
+            created_ns = lock.stat().st_mtime_ns
+        if time.time_ns() - created_ns < LOCK_TTL_NS:
+            return False
+        lock.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _acquire_lock(lock: Path) -> int:
+    for attempt in range(2):
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            if attempt or not _reclaim_stale_lock(lock):
+                raise
+            continue
+        # No fsync here: the O_EXCL creation is the atomic guarantee.  Keeping
+        # fsync out of lock acquisition preserves the existing fault-injection
+        # contract, where an fsync failure must happen inside the try/finally
+        # so that staging and lock are always cleaned up.
+        os.write(fd, canonical({"pid": os.getpid(), "created_ns": time.time_ns()}).encode("utf-8"))
+        return fd
+    raise FileExistsError(lock)
+
+
+def publish_bundle(destination: Path, files: Mapping[str, str], *,
+                   provenance: Mapping[str, object] | None = None) -> Path:
+    """Stage and publish one complete directory under a reclaimable no-overwrite lock."""
     for name in files:
         if name in ("manifest.json", ".", "..") or Path(name).name != name or "\\" in name:
             raise ContractError("bundle members must be plain filenames, excluding manifest.json")
     destination = destination.absolute()
     destination.parent.mkdir(parents=True, exist_ok=True)
     lock = destination.parent / f".{destination.name}.lock"
-    fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    fd = _acquire_lock(lock)
     stage: Path | None = None
     try:
         if os.path.lexists(destination):
@@ -160,7 +208,9 @@ def publish_bundle(destination: Path, files: Mapping[str, str]) -> Path:
                 handle.flush()
                 os.fsync(handle.fileno())
             members[name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
-        manifest = {"schema_version": 2, "status": "complete", "members": members}
+        manifest: dict[str, object] = {"schema_version": 2, "status": "complete", "members": members}
+        if provenance is not None:
+            manifest["provenance"] = dict(provenance)
         with (stage / "manifest.json").open("xb") as handle:
             handle.write((canonical(manifest) + "\n").encode("utf-8"))
             handle.flush()
@@ -181,8 +231,15 @@ def verify_bundle(path: Path) -> dict[str, object]:
     if (path / "manifest.json").is_symlink():
         raise ContractError("symlink manifest is not a bundle member")
     manifest = mapping(parse_json((path / "manifest.json").read_text(encoding="utf-8")))
-    if set(manifest) != {"schema_version", "status", "members"} or manifest["schema_version"] != 2 or manifest["status"] != "complete":
+    allowed = {"schema_version", "status", "members", "provenance"}
+    if not {"schema_version", "status", "members"} <= set(manifest) or set(manifest) - allowed:
         raise ContractError("unsupported or incomplete bundle manifest")
+    if manifest["schema_version"] != 2 or manifest["status"] != "complete":
+        raise ContractError("unsupported or incomplete bundle manifest")
+    if "provenance" in manifest:
+        prov = mapping(manifest["provenance"])
+        if not PROVENANCE_FIELDS <= set(prov):
+            raise ContractError("incomplete bundle provenance")
     members = mapping(manifest["members"])
     if {p.name for p in path.iterdir()} != set(members) | {"manifest.json"}:
         raise ContractError("bundle membership mismatch")

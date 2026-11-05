@@ -98,12 +98,26 @@ def compute_checkpoint_factors(
     *,
     checkpoint: float,
     planned_steps: int,
+    as_of: float | None = None,
 ) -> dict[str, float | int | None]:
-    """Compute factors from rows visible at ``checkpoint * planned_steps``."""
+    """Compute factors from rows observable at ``checkpoint * planned_steps``.
+
+    When ``as_of`` is supplied by an external availability clock, late-arriving
+    records and records without any availability timestamp are excluded even
+    if their training step is below the budget.  Without that clock the caller
+    MUST label the resulting row as ``degraded``: step-only filtering is not
+    evidence of point-in-time correctness.
+    """
     if planned_steps <= 0:
         raise ValueError("planned_steps must be positive")
     cutoff = float(checkpoint) * planned_steps
-    visible = samples[samples["step"] <= cutoff].sort_values("step")
+    visible = samples[samples["step"] <= cutoff]
+    if as_of is not None:
+        if "available_at" not in visible.columns:
+            raise ValueError("as_of filtering requires an available_at column")
+        visible = visible[visible["available_at"].notna()
+                          & (visible["available_at"] <= as_of)]
+    visible = visible.sort_values("step")
     evals = eval_points[eval_points["timesteps"] <= cutoff].sort_values("timesteps")
 
     rewards = visible.get("reward", pd.Series(dtype=float))
@@ -190,18 +204,26 @@ def build_factor_panel(
             factors = compute_checkpoint_factors(
                 samples, run_eval, checkpoint=checkpoint, planned_steps=planned
             )
+            has_clock = (
+                not visible.empty
+                and "available_at" in visible.columns
+                and bool(visible["available_at"].notna().all())
+            )
+            asof_mode = "strict" if has_clock and bool(run.strict_asof) else "degraded"
             rows.append({
                 "run_id": run.run_id,
                 "cohort": run.cohort,
                 "strict_asof": bool(run.strict_asof),
+                "asof_mode": asof_mode,
                 "checkpoint": float(checkpoint),
                 "checkpoint_step": int(cutoff),
                 "as_of_available_at": as_of,
                 **factors,
             })
     columns = [
-        "run_id", "cohort", "strict_asof", "checkpoint", "checkpoint_step",
-        "as_of_available_at", *[spec.name for spec in FACTOR_SPECS],
+        "run_id", "cohort", "strict_asof", "asof_mode", "checkpoint",
+        "checkpoint_step", "as_of_available_at",
+        *[spec.name for spec in FACTOR_SPECS],
     ]
     return pd.DataFrame(rows, columns=columns)
 
