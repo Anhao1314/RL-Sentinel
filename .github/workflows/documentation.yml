@@ -2,9 +2,9 @@ name: Documentation checks
 on:
   push:
     branches: [main]
-    paths: ['README*', 'docs/**', 'scripts/check_documentation.py', '.github/workflows/documentation.yml']
+    paths: ['README*', 'ARCHIVE.md', 'docs/**', 'scripts/check_documentation.py', '.github/workflows/documentation.yml']
   pull_request:
-    paths: ['README*', 'docs/**', 'scripts/check_documentation.py', '.github/workflows/documentation.yml']
+    paths: ['README*', 'ARCHIVE.md', 'docs/**', 'scripts/check_documentation.py', '.github/workflows/documentation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,6 +26,8 @@ jobs:
             artifacts/documentation-validation/
             README.md
             README.zh-CN.md
+            ARCHIVE.md
+            data/manifest.json
             docs/
             rl_risk_replay/
             scripts/check_documentation.py

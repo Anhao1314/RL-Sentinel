@@ -15,13 +15,17 @@ Typical use::
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence, TypeVar
+from collections.abc import Callable, Sequence
+from typing import Any, TypeVar
 
+# TypeVar (not PEP 695 ``def f[T]``) keeps this contract importable by projects
+# that have not yet moved to Python 3.12 syntax.  The host project itself
+# requires >=3.12; portability is the point of this module.
 T = TypeVar("T")
 K = TypeVar("K")
 
 
-def check_no_future_leak(
+def check_no_future_leak(  # noqa: UP047 - keep the 3.11-compatible signature
     visible: Callable[[Sequence[T], K], Any],
     events: Sequence[T],
     cutoff: K,
@@ -46,7 +50,7 @@ def check_no_future_leak(
     }
 
 
-def check_label_isolation(
+def check_label_isolation(  # noqa: UP047 - keep the 3.11-compatible signature
     visible: Callable[[Sequence[T], K], Any],
     events: Sequence[T],
     cutoff: K,

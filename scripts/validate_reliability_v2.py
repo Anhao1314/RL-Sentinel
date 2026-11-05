@@ -1,8 +1,7 @@
-"""Reproducible release experiment: mutations, live RL trials and legacy inventory."""
+"""Reproducible release experiment: future mutations, live RL trials and bundle verification."""
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import random
 import subprocess
@@ -17,7 +16,6 @@ if str(ROOT) not in sys.path:
 from rl_risk_replay.controlled import experiment
 from rl_risk_replay.engine import RulePolicy, Timeline
 from rl_risk_replay.events import canonical, make_event
-from rl_risk_replay.legacy_audit import audit_legacy
 from rl_risk_replay.reporting import runtime_info
 from rl_risk_replay.storage import verify_bundle
 from tests_v2.test_reliability import run_events
@@ -53,20 +51,14 @@ def main() -> None:
     results = {"runtime": runtime_info(), "future_mutation_cases": 200,
                "future_mutation_failures": 0, "visible_mutation_negative_control": "changed_as_expected"}
     if args.include_legacy:
-        from tests.test_backtest_engine import make_tables
-        import backtest_rules
-        legacy_view = backtest_rules.online_view(make_tables(), "a", "s0", 50)
-        visible_seeds = set(legacy_view["runs"]["seed"])
-        target_verdict = legacy_view["runs"].loc[legacy_view["runs"]["seed"] == "s0", "verdict"].iloc[0]
-        assert "s2" in visible_seeds and target_verdict == "fail"
-        results["legacy_negative_control"] = {"future_run_visible": True, "target_final_verdict_visible": True,
-                                               "scope": "synthetic v1 counterexample, not a training outcome"}
-        dataset = ROOT / "data" / "datasets"
-        before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in dataset.glob("*.csv")}
-        results["historical_inventory"] = audit_legacy(dataset)
-        after = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in dataset.glob("*.csv")}
-        assert before == after
-        results["historical_csv_hashes_unchanged"] = True
+        # The v1 negative control needs backtest_rules, tests/ and data/datasets.
+        # All three moved to the archive/v1 branch in v0.3.0; a silent skip would
+        # make this flag look like a passing check when it verified nothing.
+        raise SystemExit(
+            "--include-legacy requires the archived v1 modules and data/datasets "
+            "(archive/v1 branch, v0.3.0). Check out that branch to run the "
+            "historical negative control; the default v0.2 validation does not need it."
+        )
     results["controlled_experiment"] = experiment(out / "controlled", seeds=6)
     verify_bundle(out / "controlled")
     (out / "validation.json").write_text(json.dumps(results, indent=2, ensure_ascii=False, allow_nan=False)+"\n", encoding="utf-8")

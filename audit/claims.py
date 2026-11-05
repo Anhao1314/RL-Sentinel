@@ -48,11 +48,16 @@ def _compare(node: Any, check: dict[str, Any]) -> list[str]:
         if len(matched) != 1:
             return [f"expected exactly one matching row, found {len(matched)}"]
         node = matched[0]
-    if "keys_equals" in check:
-        if not isinstance(node, dict) or sorted(node) != sorted(check["keys_equals"]):
-            failures.append(f"keys differ: {sorted(node) if isinstance(node, dict) else node}")
+    if ("keys_equals" in check
+            and (not isinstance(node, dict)
+                 or sorted(node) != sorted(check["keys_equals"]))):
+        failures.append(f"keys differ: {sorted(node) if isinstance(node, dict) else node}")
     if "value_equals" in check and node != check["value_equals"]:
         failures.append(f"value differs: {node!r} != {check['value_equals']!r}")
+    if "length_equals" in check and (not isinstance(node, (list, dict))
+                                     or len(node) != check["length_equals"]):
+        actual = len(node) if isinstance(node, (list, dict)) else repr(node)
+        failures.append(f"length differs: {actual} != {check['length_equals']}")
     for key, expected in check.get("equals", {}).items():
         actual = node.get(key) if isinstance(node, dict) else None
         if actual != expected:

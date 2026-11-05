@@ -1,7 +1,0 @@
-﻿task,seed,total_steps,actual_final_reward,R_inf_p25,err_p25,reliable_p25,R_inf_p50,err_p50,reliable_p50
-balance,seed00,8000000.0,-18.8337,99.9826,118.82,True,99.9823,118.82,True
-full_chain,seed00,5900000.0,-9.4164,,,,,,
-traverse,seed01,8000000.0,66.8081,140.3798,73.57,True,140.0278,73.22,True
-traverse_curve_v1,seed00,4000000.0,-0.1642,,,,,,
-traverse_v1,seed01,8000000.0,66.8081,140.3798,73.57,True,140.0278,73.22,True
-traverse_v1,seed02,8000000.0,133.0854,140.1003,7.01,True,139.949,6.86,True

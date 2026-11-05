@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rl-training-risk-replay"
-version = "0.2.0"
+version = "0.3.0"
 description = "Time-correct, recommendation-only RL experiment reliability"
 requires-python = ">=3.12"
-dependencies = []
-
-[project.optional-dependencies]
-# pyproject.toml is the single authoritative dependency declaration.  The
-# requirements*.txt files are CI snapshots kept for the legacy regression job.
-research = [
+# The strict core (rl_risk_replay) itself imports nothing outside the stdlib.
+# These are the runtime requirements of the installed `rl-research` entry point;
+# declaring them here is what makes a plain `pip install .` usable.  Before
+# v0.3.0 they sat in an optional extra, so `rl-research` raised ImportError
+# after a default install.
+dependencies = [
   "duckdb>=1.1",
   "pandas>=2.0",
   "pyarrow>=15",
@@ -20,6 +20,13 @@ research = [
   "scipy>=1.10",
   "scikit-learn>=1.4",
 ]
+
+[project.optional-dependencies]
+# pyproject.toml is the single authoritative dependency declaration.
+# requirements-core-dev.txt and requirements-research.txt are CI snapshots that
+# pin exact versions on purpose; `python -m audit deps` fails CI if their
+# package sets drift from the declarations here.  The v1-era requirements*.txt
+# files were moved to the archive/v1 branch.
 dev = [
   "pytest>=8",
   "pytest-cov>=5",

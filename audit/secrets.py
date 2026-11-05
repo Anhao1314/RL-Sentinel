@@ -11,7 +11,6 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +36,7 @@ PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 
 def _fingerprint(commit: str, path: str, value: str) -> str:
-    return hashlib.sha256(f"{commit}\0{path}\0{value}".encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(f"{commit}\0{path}\0{value}".encode()).hexdigest()[:16]
 
 
 def _finding(rule: str, commit: str, path: str, value: str, where: str) -> dict[str, Any]:
@@ -87,9 +86,12 @@ def scan_worktree() -> list[dict[str, Any]]:
                                cwd=ROOT, capture_output=True, text=True,
                                check=False).stdout.splitlines()
     found: list[dict[str, Any]] = []
+    # CI checks out archive/v1 into .archive-checkout/ to verify the manifest.
+    # Neither that tree nor the pinned data/ tree is main's tracked content.
+    excluded_prefixes = ("data/", ".archive-checkout/")
     for relative in sorted(set(tracked) | set(untracked)):
         path = ROOT / relative
-        if (relative in EXCLUDED_PATHS or relative.startswith("data/")
+        if (relative in EXCLUDED_PATHS or relative.startswith(excluded_prefixes)
                 or path.suffix.lower() not in TEXT_SUFFIXES
                 or not path.is_file()):
             continue

@@ -2,18 +2,20 @@
 
 本文件记录 RL-Sentinel 的重要变更。格式参考 Keep a Changelog，版本号参考语义化版本（SemVer）。
 说明：本仓库此前没有 LICENSE / CHANGELOG / ADR / SECURITY / ROADMAP，0 tag、0 release、
-0 open issue，9 个 PR 全部合并或关闭；下列版本号是对提交历史的回溯标注，不对应已发布版本。
+0 open issue，9 个 PR 全部合并或关闭；[0.1.0] 与 [0.2.0] 是对提交历史的回溯标注，
+不对应已发布版本。原 `[Unreleased]` 段定稿为 [0.3.0]，自该版本起打 tag / 发 release。
 日期以提交历史为准。
 
 - 仓库：Anhao1314/RL-Sentinel（公开仓库，owner Anhao1314），基线 commit 5315865（2026-10-19）。
 - 命名历史：RL Sentinel / rl_risk_replay / 发行包名 rl-training-risk-replay（pyproject.toml）/
   CLI 名 rl-risk。
 
-## [Unreleased]
+## [0.3.0] - 2026-11-05
 
-本次为「收尾式改造」：将仓库定位收敛为「RL 实验时间正确性 / 证据链的最小参考实现」；
-停止按原目标（在线预测 + 建议制止损）产品化投入。**本批次只含可逆改动**；
-git 历史改写、data/ 产物迁移、v1 归档与发版属第二批，需单独确认。
+本版本合并两批改造。第一批（PR #10，main 合并提交 `0e5cf3a`）把仓库定位收敛为
+「RL 实验时间正确性 / 证据链的最小参考实现」，停止按原目标（在线预测 + 建议制止损）
+产品化投入；第二批在 `refactor/archive-v1` 分支完成 v1 物理归档与发版。两批均不改写
+git 历史、不轮换 webhook（见「已知限制 / 未在本批次完成」）。
 
 ### 新增
 - 治理文件：LICENSE（MIT，版权行 `Copyright (c) 2026 Anhao1314`；如需更换由所有者决定）、
@@ -21,7 +23,7 @@ git 历史改写、data/ 产物迁移、v1 归档与发版属第二批，需单�
 - `rl_risk_replay/policy.py`：单一规则定义源。两套算法分别注册为
   `rules-v2/strict-replay@1` 与 `rules-v2/cohort-backtest@1`；显示名 `rules-v2` 保留，
   以维持既有结果与报告可复现，但引用结论必须给出 rule_id。
-- `CLAIMS.json`：对外结论台账（3 条 verified、1 条 unverified、1 条 retired），
+- `CLAIMS.json`：对外结论台账（4 条 verified、1 条 unverified、1 条 retired），
   每条含分母、适用边界与复现命令；`python -m audit claims --verify` 在 CI 重算，数字漂移即失败。
 - `.security-allowlist.json`：唯一登记的历史凭据事件（fingerprint / commit / path / reason），
   任何未登记命中阻断 CI。
@@ -39,11 +41,49 @@ git 历史改写、data/ 产物迁移、v1 归档与发版属第二批，需单�
   去重存入 `views.jsonl`，决策行只保留引用；`report.html` 不再内嵌全量结果。
 - 崩溃恢复：锁文件带创建时间，超过 300 秒的陈旧锁可回收；写入仍为 staging + 原子 rename。
 - 依赖声明：`pyproject.toml` 增加 `dev` extra 并注明其为唯一权威声明；
-  `requirements*.txt` 保留为 CI 快照。
+  研究层 6 个运行时依赖从可选 `research` extra 移入 `dependencies`，修复
+  `pip install .` 后 `rl-research` 裸装 ImportError；v1 的 `requirements.txt` /
+  `requirements-dev.txt` 归档，`requirements-core-dev.txt` 与
+  `requirements-research.txt` 保留为钉住版本的 CI 快照，由 `audit deps` 校验一致性。
 - CI：新增 `research-and-audit` job（`fetch-depth: 0`），覆盖研究层测试、
-  时间隔离契约、结论重算、规则单一源、全历史密钥扫描、最小致命规则 lint 与环境记录。
+  时间隔离契约、结论重算、规则单一源、全历史密钥扫描、依赖一致性、
+  活跃代码全量 lint、环境记录，并检出 `archive/v1` 校验归档产物哈希。
 
-### 实测（本批次，Python 3.13.12 / macOS）
+### 第二批：v1 物理归档与发版
+
+- 【事实】v1 资产物理归档到 `archive/v1` 分支：该分支为 main `0e5cf3a` 的完整快照，
+  已创建并推送，可 `git checkout archive/v1` 完整检出；main 上移走 18 个根目录 v1 模块、
+  `legacy/`、`tests/`（265 个 v1 测试）、`data/` 142 份产物（66 csv / 39 md / 24 png /
+  13 json，约 9.5 MB）、`config.json`、`run_windows.bat`、`WINDOWS.md`、
+  `requirements.txt`、`requirements-dev.txt` 与 5 个 v1 专用 scripts。main 保留 `rl_risk_replay/`、`research/`、
+  `audit/`、`contracts/`、`tests_v2/`、`tests_research/`、`docs/`、
+  `scripts/check_documentation.py`、`scripts/validate_reliability_v2.py` 与治理文件。
+  范围与检出方式见 ARCHIVE.md。
+- 【事实】`data/manifest.json` 保留在 main，含全部 142 个产物的路径、SHA-256 与字节数，
+  作为内容寻址锚点；配套 `python -m audit data --root <archive/v1 检出路径>` 校验。
+  这是把项目自身的「内容哈希证据包」机制用在仓库自身；清单是 provenance 锚点，
+  不表示归档 CSV 可用于严格回放（历史 CSV 无 `available_at`）。
+- 【事实】7 份历史文档（`PROJECT_CONTEXT.md`、`AGENTS.md`、`PHASE_RECORD.md`、
+  `QUANT_PLAN.md`、`DATA_DICTIONARY.md`、`MATH_LIBRARY.md`、
+  `docs/portfolio-validation.md`）保留在 main 原位，仅在文件开头加 RETIRED 横幅，
+  正文一字不改；保留而非删除，以免破坏可追溯性与文档相对链接校验。
+- 【事实】CI 移除 `legacy-regression` job（v1 测试已随 `tests/` 归档）。
+- 【事实】依赖声明收口：`pyproject.toml` 为唯一权威源；研究层依赖进入
+  `dependencies`（修复 `rl-research` 裸装失效），版本号升至 `0.3.0`（含
+  `rl_risk_replay.__version__` 与证据包 provenance 一致）；
+  `python -m audit deps` 校验两份 CI 快照的包集合、并阻止 v1 requirements 回到 main。
+- 【事实】`tests_v2/test_legacy_gate.py` 由「运行旧 CLI 并要求拒绝」改为归档契约门禁：
+  断言旧 shim 与 `tests/`、`legacy/` 不在 main、归档索引与 ADR 0002 存在、
+  `data/manifest.json` 内部自洽、`data/` 只剩清单一份文件。
+- 【事实】`scripts/validate_reliability_v2.py --include-legacy` 与
+  `rl-risk audit-legacy` 不再静默失败：明确报错并指向 `archive/v1` 与哈希校验命令。
+- 【事实】新增 `docs/adr/0002-no-git-history-rewrite.md`：记录不改写 git 历史来清除
+  已泄露 webhook 的决策、三条论证与备选方案（见「已知限制 / 未在本批次完成」）。
+- 【事实】新增 `ARCHIVE.md`（归档索引）；`SECURITY.md` 补「处置清单与责任边界」，
+  `RESTART.md` 补当前冻结状态与 webhook 轮换开放问题。
+- 【事实】打出 `v0.3.0` tag / release。
+
+### 实测（第一批，Python 3.13.12 / macOS）
 - 三套测试 **342 passed + 29 subtests passed**；文档一致性检查 75 个相对链接、4 条命令通过。
 - 默认实验证据包 18 runs：**15 MB → 2.1 MB**；36 runs：**59 MB → 8.0 MB**。
 - 注入旧 mtime 空锁文件后 `experiment` 自愈成功；`audit` 四个子命令全部通过。
@@ -51,14 +91,28 @@ git 历史改写、data/ 产物迁移、v1 归档与发版属第二批，需单�
   在 3 个提交中重复出现（共 4 次 diff 命中、1 个不同凭据值），已逐条显式登记于
   `.security-allowlist.json`；当前 HEAD 不含该值，但**轮换状态仍未确认**。
 
+### 实测（第二批，Python 3.13.12 / macOS）
+- 归档后活跃套件 **80 passed + 29 subtests passed**（`tests_v2/` + `tests_research/`）；
+  v1 的 265 个测试随其覆盖的代码退役，保留在 `archive/v1`。
+- `ruff check` 对 `rl_risk_replay research audit contracts tests_v2 tests_research scripts`
+  **全绿**（0 errors）；`pyright --project pyright-core.json` **0 errors**。
+- `python -m audit data --root <archive/v1 检出>`：**142/142 产物哈希与字节数匹配**，
+  0 缺失、0 不一致，合计 9,655,860 字节。
+- `audit claims --verify`：4 条 verified 全部重算通过（新增归档数量一条）；
+  `rules` / `deps` / `secrets` / `env` 均返回 0。
+- 文档检查：92 个相对链接、6 份 SVG、4 条可执行命令通过；
+  `quick start` 与 `verify` 通过；`pip install -e .` 后 `rl-research --help` 可用。
+- 修掉两处真实潜在缺陷：`controlled.py` 的循环变量晚绑定闭包（B023）、
+  `engine.py` 的 dataclass 默认值函数调用（RUF009）；其余 46 项为自动风格修复。
+
 ### 已知限制 / 未在本批次完成
 - 历史 CSV 无 `available_at`，研究层多数行仍为 degraded；严格 as-of 需训练端
   producer 提供独立 availability clock（RESTART.md 判据②）。
 - `views.jsonl` 中的 `view.history` 仍随 run 数线性增长，整体有残余平方项；
   本批次消除的是「每条 decision 内嵌完整 View」与「HTML 内嵌全量 results.json」两项主要来源。
-- 未执行：git 历史改写（webhook 轮换后由所有者决定）、`data/` 142 份产物迁移、
-  v1 模块归档、发 tag / release、顶层旧文档加 RETIRED 横幅。
-- 全仓 ruff 全量规则仍有 39 条风格建议；CI 目前只强制致命规则集（E9/F63/F7/F82）。
+- 【事实】本版本（含两批）**未做**：未改写 git 历史（决策与论证见 ADR 0002）、
+  未在飞书侧轮换 / 停用 webhook（轮换状态【待确认】，见 SECURITY.md）。
+  这两项不由本仓库执行，也不声称漏洞已修复。
 
 ### 冻结
 - main 只接受安全修复、复现性修复、文档更正三类改动；重启判据见 RESTART.md。

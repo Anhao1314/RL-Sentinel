@@ -4,9 +4,10 @@ from __future__ import annotations
 import hashlib
 import random
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 
 from .engine import ConstantPolicy, Predictor, Row, RulePolicy, Timeline, encode_views
 from .events import canonical
@@ -111,8 +112,12 @@ def experiment(destination: Path, seeds: int = 6) -> dict[str, object]:
                 run_id = f"trial-{fault_index * seeds + seed:03d}"
                 store.record(run_id, "start", {"task": "gridworld4x4", "seed": str(seed), "planned_steps": 4000})
 
-                def observe(step: int, reward: float) -> None:
-                    store.record(run_id, "sample", {"step": step, "reward": reward})
+                def observe(step: int, reward: float, *,
+                            bound_run_id: str = run_id) -> None:
+                    # Bind the loop variable at definition time: a late-bound
+                    # closure would silently attribute samples to the last run.
+                    store.record(bound_run_id, "sample",
+                                 {"step": step, "reward": reward})
 
                 q, rollouts = train_trial(seed, fault, observe)
                 store.record(run_id, "finish", {"status": "completed"})

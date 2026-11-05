@@ -10,14 +10,14 @@ import hashlib
 import html
 import json
 import os
-from pathlib import Path
 import re
 import shlex
 import subprocess
 import sys
 import tempfile
-from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ("README.md", "README.zh-CN.md", "docs/README.md",

@@ -8,12 +8,25 @@ import sqlite3
 import tempfile
 import time
 import uuid
+from collections.abc import Callable, Mapping
 from contextlib import closing
 from pathlib import Path
-from typing import Callable, Mapping, cast
+from typing import cast
 
-from .events import (ContractError, Event, Kind, Origin, Scalar, canonical, integer,
-                     make_event, mapping, number, parse_json, validate_events)
+from .events import (
+    ContractError,
+    Event,
+    Kind,
+    Origin,
+    Scalar,
+    canonical,
+    integer,
+    make_event,
+    mapping,
+    number,
+    parse_json,
+    validate_events,
+)
 
 # A crashed publisher used to leave an empty O_EXCL lock file forever, making
 # the output directory permanently unusable.  Locks now carry a creation time

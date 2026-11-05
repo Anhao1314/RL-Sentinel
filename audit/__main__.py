@@ -1,4 +1,4 @@
-"""Repository self-audit CLI: claims, rules, secrets, environment."""
+"""Repository self-audit CLI: claims, rules, secrets, dependencies, archive, environment."""
 from __future__ import annotations
 
 import argparse
@@ -6,11 +6,12 @@ import importlib.util
 import json
 import platform
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 from .claims import load_claims, verify_claims
+from .data import verify as verify_archive_manifest
+from .deps import run as run_dependency_check
 from .secrets import run as run_secret_scan
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
     secrets.add_argument("--report", action="store_true",
                          help="print all fingerprints without failing")
     sub.add_parser("rules", help="check rule sources against the registry")
+    sub.add_parser("deps", help="check CI dependency snapshots against pyproject.toml")
+    data_cmd = sub.add_parser(
+        "data", help="verify archived artifacts against data/manifest.json")
+    data_cmd.add_argument("--root", required=True,
+                          help="checkout root of archive/v1 (or its data/ directory)")
     sub.add_parser("env", help="print reproduction environment")
     args = parser.parse_args(argv)
     if args.command == "claims":
@@ -85,6 +91,14 @@ def main(argv: list[str] | None = None) -> int:
         return code
     if args.command == "rules":
         result = rules_check()
+        _emit(result)
+        return 0 if result["status"] == "passed" else 1
+    if args.command == "deps":
+        result = run_dependency_check()
+        _emit(result)
+        return 0 if result["status"] == "passed" else 1
+    if args.command == "data":
+        result = verify_archive_manifest(Path(args.root))
         _emit(result)
         return 0 if result["status"] == "passed" else 1
     _emit(environment())

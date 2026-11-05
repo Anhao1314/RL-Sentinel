@@ -1,7 +1,6 @@
 """Normal, boundary, adversarial temporal, transaction and publication tests."""
 from __future__ import annotations
 
-import copy
 import json
 import random
 import sqlite3
@@ -14,16 +13,34 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rl_risk_replay.__main__ import main
-from rl_risk_replay.controlled import evaluate, train_trial, transition
-from rl_risk_replay.engine import (ConstantPolicy, Decision, Row, RuleConfig, RulePolicy,
-                                  Timeline, View)
-from rl_risk_replay.events import (ContractError, Event, canonical, make_event, parse_json,
-                                  validate_events)
+from rl_risk_replay.controlled import train_trial, transition
+from rl_risk_replay.engine import (
+    ConstantPolicy,
+    Decision,
+    Row,
+    RuleConfig,
+    RulePolicy,
+    Timeline,
+    View,
+)
+from rl_risk_replay.events import (
+    ContractError,
+    Event,
+    canonical,
+    make_event,
+    parse_json,
+    validate_events,
+)
 from rl_risk_replay.legacy_audit import audit_legacy
 from rl_risk_replay.metrics import summarize
 from rl_risk_replay.reporting import render_html
-from rl_risk_replay.storage import (EventStore, decode_events, encode_events,
-                                   publish_bundle, verify_bundle)
+from rl_risk_replay.storage import (
+    EventStore,
+    decode_events,
+    encode_events,
+    publish_bundle,
+    verify_bundle,
+)
 
 
 def run_events(run_id="target", start=100.0, verdict="fail", label_delay=0.0):
@@ -382,7 +399,7 @@ class StorageTest(unittest.TestCase):
         def append(run):
             try:
                 self.store.append(run_events(run, 1000))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - concurrent failures are the assertion subject
                 errors.append(exc)
         threads = [threading.Thread(target=append, args=(f"r{i}",)) for i in range(4)]
         for thread in threads:
@@ -434,9 +451,9 @@ class BundleAndCliTest(unittest.TestCase):
             publish_bundle(self.root / "busy", {"data":"x"})
 
     def test_fsync_fault_leaves_no_complete_output(self):
-        with patch("rl_risk_replay.storage.os.fsync", side_effect=OSError("injected")):
-            with self.assertRaises(OSError):
-                publish_bundle(self.root / "failed", {"data":"x"})
+        with (patch("rl_risk_replay.storage.os.fsync", side_effect=OSError("injected")),
+              self.assertRaises(OSError)):
+            publish_bundle(self.root / "failed", {"data":"x"})
         self.assertFalse((self.root / "failed").exists())
         self.assertFalse(list(self.root.glob(".failed*")))
 

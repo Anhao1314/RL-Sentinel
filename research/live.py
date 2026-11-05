@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import pathlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -25,7 +26,7 @@ def _fmt(value: Any, digits: int = 2) -> str:
         number = float(value)
     except (TypeError, ValueError):
         return html.escape(str(value))
-    if number != number:
+    if math.isnan(number):
         return "N/A"
     return f"{number:,.{digits}f}"
 
@@ -239,7 +240,7 @@ h1{font-size:34px}.hero{padding-top:28px}}
       <div class="kpi"><div class="kpi-label">Samples</div>
         <div class="kpi-value">{_fmt(snapshot.get('sample_count'), 0)}</div></div>
       <div class="kpi"><div class="kpi-label">Source</div>
-        <div class="kpi-value mono" style="font-size:12px">{html.escape(str((source.get('commit') or 'unknown'))[:12])}</div></div>
+        <div class="kpi-value mono" style="font-size:12px">{html.escape(str(source.get('commit') or 'unknown')[:12])}</div></div>
     </div>
   </section>
 </div>
@@ -263,7 +264,7 @@ Read-only: no stop/tune/resize action is executed. Static evidence lives in the 
     path.write_text(html_doc, encoding="utf-8")
     return {
         "path": str(path),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "status": status,
         "progress": progress,
         "label": label.get("verdict") if label else None,
