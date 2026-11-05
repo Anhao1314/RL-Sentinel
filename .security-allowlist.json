@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "note": "Explicit, reviewable exceptions for historical findings only. Every entry must name a commit, path, reason and status. New findings are never suppressed. See SECURITY.md.",
+  "distinct_credential_values": 1,
   "entries": [
     {
       "fingerprint": "0f6c5b265ebf4826",
@@ -8,7 +9,25 @@
       "path": "config.json",
       "rule": "feishu_webhook",
       "status": "recorded-pending-rotation",
-      "reason": "Known historical incident: a Feishu bot webhook URL was committed in plaintext and removed in 647fa892c230f0dab839e977eef1ad0961ddef71. The value is still retrievable from git history; it must be rotated/revoked on the Feishu side. Rotation status is NOT confirmed by this repository. See SECURITY.md.",
+      "reason": "Known historical incident: one Feishu bot webhook URL was committed in plaintext, appears in several commits, and was removed in 647fa892c230f0dab839e977eef1ad0961ddef71. Full-history scanning finds 4 diff hits but only 1 distinct credential value. It remains retrievable from git history and must be rotated/revoked on the Feishu side; rotation is NOT confirmed. See SECURITY.md.",
+      "recorded_at": "2026-11-05"
+    },
+    {
+      "fingerprint": "4675885b1b42f7bb",
+      "commit": "05a0638aa4e427e5178ed707c615480709d3eccd",
+      "path": "config.json",
+      "rule": "feishu_webhook",
+      "status": "recorded-pending-rotation",
+      "reason": "Same credential value as the incident above, introduced with the realtime monitor. Full-history view only; a shallow clone does not expose this commit. See SECURITY.md.",
+      "recorded_at": "2026-11-05"
+    },
+    {
+      "fingerprint": "ae0e41ae1f560c0e",
+      "commit": "3e9b468baa244b47b7aca6fe1ff9a51996624044",
+      "path": "config.json",
+      "rule": "feishu_webhook",
+      "status": "recorded-pending-rotation",
+      "reason": "Same credential value as the incident above, in an earlier historical diff. Full-history view only. See SECURITY.md.",
       "recorded_at": "2026-11-05"
     }
   ]

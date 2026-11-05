@@ -47,6 +47,9 @@ git 历史改写、data/ 产物迁移、v1 归档与发版属第二批，需单�
 - 三套测试 **342 passed + 29 subtests passed**；文档一致性检查 75 个相对链接、4 条命令通过。
 - 默认实验证据包 18 runs：**15 MB → 2.1 MB**；36 runs：**59 MB → 8.0 MB**。
 - 注入旧 mtime 空锁文件后 `experiment` 自愈成功；`audit` 四个子命令全部通过。
+- CI 全历史密钥扫描（`fetch-depth: 0`）比浅克隆发现更多命中：同一飞书 webhook 值
+  在 3 个提交中重复出现（共 4 次 diff 命中、1 个不同凭据值），已逐条显式登记于
+  `.security-allowlist.json`；当前 HEAD 不含该值，但**轮换状态仍未确认**。
 
 ### 已知限制 / 未在本批次完成
 - 历史 CSV 无 `available_at`，研究层多数行仍为 degraded；严格 as-of 需训练端

@@ -36,17 +36,23 @@
   命中项按 `commit + path + 值` 生成 fingerprint。未登记命中使
   `python -m audit secrets` 返回非零；CI 的 `research-and-audit` job 以
   `fetch-depth: 0` 运行它，命中即阻断合并。
-- `.security-allowlist.json` 目前只登记 1 条：commit
-  `ff837403c0189f2255780a92579677a6f44a58c0` 中 `config.json` 的飞书 webhook，
-  fingerprint `0f6c5b265ebf4826`，状态 `recorded-pending-rotation`。这是**显式登记**
-  而非静默放行：轮换完成后应更新状态；若选择改写 git 历史，应删除该条并重新全历史扫描。
+- 全历史扫描（`fetch-depth: 0`）发现该 webhook 值在多个提交中重复出现：
+  共 4 次 diff 命中，但只有 **1 个不同的凭据值**。浅克隆视图只能看到其中 1 处。
+  `.security-allowlist.json` 逐条登记了 3 个提交 / fingerprint
+  （`ff837403…`、`05a0638a…`、`3e9b468b…`，均为 `config.json` 的 `feishu_webhook`），
+  状态统一为 `recorded-pending-rotation`。这是**显式登记**而非静默放行：
+  扫描器除精确 fingerprint 外，只额外接受「commit + path + rule」完全匹配的已登记条目，
+  任何新提交中的同类命中仍会阻断。轮换完成后应更新状态；
+  若选择改写 git 历史，应删除这些条目并重新全历史扫描。
 - 扫描器自身（`audit/secrets.py`）与 allowlist 文件因包含检测模式而被排除；
   排除清单会在每份扫描报告中输出，保持可审计。
 - 配置约定：只提交不含真实凭据的 `config.example.json`。`config.json` 目前仍在版本控制中
   （不含该 webhook 值），是否移除属【待确认】。
 
 【事实】本批次**未**改写 git 历史、**未**轮换 webhook；轮换必须在飞书侧由所有者执行。
-【事实】当前 `python -m audit secrets` 报告：1 条已登记历史事件、0 条未登记命中。
+【事实】当前 `python -m audit secrets` 报告：全部命中均为已登记的历史事件，0 条未登记命中。
+【推断】同一值在多个提交中重复出现，说明它可能曾被重新写入而非一次性误提交；
+是否已被第三方取用无法从仓库判断，因此轮换（而非仅删除文件）是必要动作。
 
 ## 报告渠道
 

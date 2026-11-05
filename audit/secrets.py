@@ -110,6 +110,25 @@ def load_allowlist() -> dict[str, dict[str, Any]]:
     return {entry["fingerprint"]: entry for entry in raw.get("entries", [])}
 
 
+def _entry_for(item: dict[str, Any],
+               allowlist: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Exact fingerprint first, then an explicit commit/path/rule registration.
+
+    The same historical value appears in several diffs, and shallow versus
+    full clones can attribute it to different commits.  Registering the exact
+    commits keeps that explicit without exempting any new commit.
+    """
+    if item["fingerprint"] in allowlist:
+        return allowlist[item["fingerprint"]]
+    for entry in allowlist.values():
+        if (entry.get("commit") == item["commit"]
+                and entry.get("path") == item["path"]
+                and entry.get("rule") == item["rule"]
+                and entry.get("status") == "recorded-pending-rotation"):
+            return entry
+    return None
+
+
 def run(*, report_only: bool = False) -> tuple[int, dict[str, Any]]:
     history, commits = scan_history()
     worktree = scan_worktree()
@@ -119,7 +138,11 @@ def run(*, report_only: bool = False) -> tuple[int, dict[str, Any]]:
         seen.setdefault(item["fingerprint"], item)
     unknown, acknowledged = [], []
     for item in sorted(seen.values(), key=lambda x: x["fingerprint"]):
-        (acknowledged if item["fingerprint"] in allowlist else unknown).append(item)
+        entry = _entry_for(item, allowlist)
+        if entry is None:
+            unknown.append(item)
+        else:
+            acknowledged.append({**item, "reason": entry.get("reason")})
     result: dict[str, Any] = {
         "status": "passed" if not unknown or report_only else "failed",
         "scanned_commits": commits,
@@ -129,8 +152,7 @@ def run(*, report_only: bool = False) -> tuple[int, dict[str, Any]]:
         ],
         "acknowledged": [
             {"fingerprint": item["fingerprint"], "commit": item["commit"],
-             "path": item["path"],
-             "reason": allowlist[item["fingerprint"]].get("reason")}
+             "path": item["path"], "reason": item["reason"]}
             for item in acknowledged
         ],
         "scope": "git --all history (excluding data/) plus tracked and untracked text files",
