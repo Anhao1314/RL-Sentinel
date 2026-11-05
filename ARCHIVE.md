@@ -51,7 +51,8 @@ python -m audit data --root <archive/v1 检出路径>
 
 ## 保留在 main 的历史文档与 RETIRED
 
-【事实】以下历史文档保留在 main 原位，仅在文件开头加 RETIRED 横幅，正文一字不改：
+【事实】以下历史文档保留在 main 原位，仅在文件开头加 RETIRED 横幅：除 5 份文档中各 1 行
+过时的外部通知状态表述于 2026-11-05 做中性化更正外，正文未改；见 CHANGELOG [Unreleased]。
 `PROJECT_CONTEXT.md`、`AGENTS.md`、`PHASE_RECORD.md`、`QUANT_PLAN.md`、
 `DATA_DICTIONARY.md`、`MATH_LIBRARY.md`、`docs/portfolio-validation.md`。
 
@@ -66,3 +67,6 @@ python -m audit data --root <archive/v1 检出路径>
 保留内容寻址锚点；本批次**未**改写 git 历史、**未**改写已归档文件正文。
 历史中的凭据事件与不改写历史的决策，见 [SECURITY.md](SECURITY.md) 与
 [ADR 0002](docs/adr/0002-no-git-history-rewrite.md)。
+
+【事实】历史中的凭据已由所有者确认轮换并停用，但 git 历史未改写，明文值仍可取回；
+详见 [SECURITY.md](SECURITY.md) 与 [ADR 0002](docs/adr/0002-no-git-history-rewrite.md)。

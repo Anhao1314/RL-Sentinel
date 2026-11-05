@@ -22,7 +22,11 @@ TEXT_SUFFIXES = frozenset({".py", ".json", ".md", ".yml", ".yaml", ".toml",
 EXCLUDED_PATHS = frozenset({"audit/secrets.py", ".security-allowlist.json"})
 
 # Patterns are assembled so this source file does not itself contain a
-# credential-shaped literal.
+# credential-shaped literal.  The bot-webhook rule stays enabled after the
+# owner confirmed the historical credential was revoked: git history still
+# contains the value, and the rule must keep catching any recurrence or any
+# new URL of the same shape.  Its allowlist entries are marked `revoked`,
+# not deleted.
 PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("feishu_webhook", re.compile(
         "https://open." + "feishu.cn/open-apis/bot/v2/hook/" + r"[A-Za-z0-9_-]{8,}")),
@@ -112,13 +116,19 @@ def load_allowlist() -> dict[str, dict[str, Any]]:
     return {entry["fingerprint"]: entry for entry in raw.get("entries", [])}
 
 
+# An entry is a registration while it is either awaiting rotation or revoked.
+# Both are explicit, reviewed states; neither exempts a different commit.
+REGISTERED_STATUSES = frozenset({"recorded-pending-rotation", "revoked"})
+
+
 def _entry_for(item: dict[str, Any],
                allowlist: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
     """Exact fingerprint first, then an explicit commit/path/rule registration.
 
     The same historical value appears in several diffs, and shallow versus
     full clones can attribute it to different commits.  Registering the exact
-    commits keeps that explicit without exempting any new commit.
+    commits keeps that explicit without exempting any new commit.  Revoking a
+    credential changes its status, not whether the historical diff is known.
     """
     if item["fingerprint"] in allowlist:
         return allowlist[item["fingerprint"]]
@@ -126,7 +136,7 @@ def _entry_for(item: dict[str, Any],
         if (entry.get("commit") == item["commit"]
                 and entry.get("path") == item["path"]
                 and entry.get("rule") == item["rule"]
-                and entry.get("status") == "recorded-pending-rotation"):
+                and entry.get("status") in REGISTERED_STATUSES):
             return entry
     return None
 
@@ -144,7 +154,8 @@ def run(*, report_only: bool = False) -> tuple[int, dict[str, Any]]:
         if entry is None:
             unknown.append(item)
         else:
-            acknowledged.append({**item, "reason": entry.get("reason")})
+            acknowledged.append({**item, "reason": entry.get("reason"),
+                                 "allowlist_status": entry.get("status")})
     result: dict[str, Any] = {
         "status": "passed" if not unknown or report_only else "failed",
         "scanned_commits": commits,
@@ -154,7 +165,8 @@ def run(*, report_only: bool = False) -> tuple[int, dict[str, Any]]:
         ],
         "acknowledged": [
             {"fingerprint": item["fingerprint"], "commit": item["commit"],
-             "path": item["path"], "reason": item["reason"]}
+             "path": item["path"], "reason": item["reason"],
+             "allowlist_status": item["allowlist_status"]}
             for item in acknowledged
         ],
         "scope": "git --all history (excluding data/) plus tracked and untracked text files",

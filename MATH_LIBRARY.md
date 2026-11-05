@@ -3,7 +3,7 @@
 > 与 [ADR 0001](docs/adr/0001-from-prediction-to-evidence.md)。
 > 代码与数据已归档至 `archive/v1` 分支，见 [ARCHIVE.md](ARCHIVE.md)。
 
-> 当前状态：飞书通知已移除；机器参数使用 config.local.json。全程特征基线仅用于事后分析，不能用于在线早停或 ETA 预测；历史指标保留原始口径。
+> 当前状态：外部通知已移除；机器参数使用 config.local.json。全程特征基线仅用于事后分析，不能用于在线早停或 ETA 预测；历史指标保留原始口径。
 
 # MATH_LIBRARY：公式与因子口径库（go2w-quant）
 
