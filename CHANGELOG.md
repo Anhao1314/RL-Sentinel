@@ -36,6 +36,13 @@
   SSE（`/stream`）实时推送快照，canvas 绘制 silence/reward 双曲线、run 谱系表（attempt/
   续跑标志）、告警流；动态数据仅经 `textContent` 注入（无模板注入面），缺失指标显示 —
   而非 0；Grafana 仍负责长程分析，操作台负责"现在谁挂了"。
+- 真实框架验证（本机执行，非 CI）：新增 `scripts/sb3_real_demo.py`，在真 SB3 PPO（CartPole-v1）
+  上端到端验证守护层——真 SIGTERM 抢占转为 `finish("cancelled")`，重试被派生为 attempt 2 且
+  `resumed_after_cancelled=true`，损失步数 358,145；1,548 条真实事件 0 条契约拒绝。
+  适配器真机修正：`_on_training_start` 接收 SB3 传入的 `locals_` 参数（桩测试覆盖不到的签名），
+  并暴露 `callback.producer` 供 `preemption_guard` 使用。
+  登记声明 `agent.sb3-real.cartpole-preemption`（unverified：torch/SB3 不入 CI，数字不可由仓库重算，
+  本机复现命令与边界见 CLAIMS）。
 - 登记声明 `agent.hang-demo.staleness`（verified）：`python -m sentinel_agent selftest` 以虚拟时钟
   确定性复现「最后指标看似健康 → 静默告警 → 数据恢复后重置 → finish 后不再告警」全链路。
 - CI：strict-core job 增跑 `tests_agent/`；ruff 门禁覆盖 `sentinel_agent`、`tests_agent`。

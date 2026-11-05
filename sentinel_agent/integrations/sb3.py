@@ -54,13 +54,11 @@ def build_sentinel_callback(base: type, *, producer: SentinelProducer,
     every = int(emit_every_steps)
     if every <= 0:
         raise ValueError("emit_every_steps must be positive")
-    started = False
 
     class _SentinelCallback(base):  # type: ignore[misc, valid-type]
-        def _on_training_start(self) -> None:
-            nonlocal started
+        # SB3 calls _on_training_start(locals_); the argument is ignored here.
+        def _on_training_start(self, locals_: dict | None = None) -> None:
             producer.start()
-            started = True
 
         def _on_step(self) -> bool:
             last = forwarder.last_emitted_step or 0
@@ -75,7 +73,9 @@ def build_sentinel_callback(base: type, *, producer: SentinelProducer,
             """Emit a failed finish; call from your own exception handler."""
             producer.finish("failed")
 
-    return _SentinelCallback()
+    callback = _SentinelCallback()
+    callback.producer = producer  # exposed for preemption_guard and cleanup
+    return callback
 
 
 def sentinel_callback(*, out_path: Path | str, task: str, seed: str,
