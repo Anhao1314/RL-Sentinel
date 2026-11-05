@@ -27,6 +27,11 @@
   永不中止训练；重复 step 与非有限值跳过而非伪造）；`MetricForwarder` 框架无关搬运逻辑以
   桩基类测试，无需安装框架；`docs/WATCHDOG_INTEGRATIONS.md` 覆盖通用循环 / SB3 / Lightning /
   torchrun 多进程（rank 编码进 run_id，每 rank 独立文件 + 独立 agent）与 HTTP 摄入模式。
+- 断点续训证据：`sentinel_agent/resilience.py` 把 SIGTERM/SIGINT 转为契约合法的
+  `finish("cancelled")`（fsync 落盘后恢复平台默认 kill 语义，SIGKILL 由静默告警兜底）；
+  agent 按 (task, seed) 派生续跑谱系（`attempt` 序号、`resumed_after_cancelled`）与浪费算力
+  下限（`sentinel_preemptions_total` / `sentinel_steps_lost_total`），零 schema 改动；
+  登记声明 `agent.selftest.resilience`（verified，与 staleness 同一 selftest 复现）。
 - 登记声明 `agent.hang-demo.staleness`（verified）：`python -m sentinel_agent selftest` 以虚拟时钟
   确定性复现「最后指标看似健康 → 静默告警 → 数据恢复后重置 → finish 后不再告警」全链路。
 - CI：strict-core job 增跑 `tests_agent/`；ruff 门禁覆盖 `sentinel_agent`、`tests_agent`。

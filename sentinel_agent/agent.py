@@ -66,6 +66,7 @@ class RunState:
 
     run_id: str
     task: str | None = None
+    seed: str | None = None
     started: bool = False
     finished: bool = False
     last_event_wall: float = 0.0
@@ -75,6 +76,17 @@ class RunState:
     verdict: str | None = None
     events: int = 0
     alerted_silence: bool = False
+    # Resume lineage, derived from (task, seed) starts — no schema change.
+    attempt: int = 0
+    resumed_after_cancelled: bool = False
+
+
+@dataclass
+class _Lineage:
+    """Observed-start ordinal and cancel flag per (task, seed)."""
+
+    starts: int = 0
+    last_cancelled: bool = False
 
 
 def _escape_label(value: str) -> str:
@@ -109,7 +121,9 @@ class Agent:
         self._counters: dict[str, int] = {
             "ingested": 0, "duplicates": 0, "invalid": 0,
             "silence_alerts": 0, "alert_failures": 0,
+            "preemptions": 0, "steps_lost": 0,
         }
+        self._lineage: dict[tuple[str, str], _Lineage] = {}
         self.alerts: deque[Alert] = deque(maxlen=100)
 
     # -- ingest --------------------------------------------------------------
@@ -133,12 +147,24 @@ class Agent:
         if event.kind == "start":
             run.started = True
             run.task = str(payload["task"])
+            run.seed = str(payload["seed"])
+            entry = self._lineage.setdefault((run.task, run.seed), _Lineage())
+            run.attempt = entry.starts + 1
+            run.resumed_after_cancelled = entry.last_cancelled
+            entry.starts = run.attempt
+            entry.last_cancelled = False
         elif event.kind == "sample":
             run.last_step = int(payload["step"])
             run.last_metrics = {key: float(payload[key]) for key in _METRIC_KEYS
                                 if key in payload}
         elif event.kind == "finish":
             run.finished = True
+            if payload["status"] == "cancelled":
+                self._counters["preemptions"] += 1
+                self._counters["steps_lost"] += run.last_step or 0
+                if run.task is not None and run.seed is not None:
+                    self._lineage.setdefault((run.task, run.seed),
+                                             _Lineage()).last_cancelled = True
         elif event.kind == "label":
             run.verdict = str(payload["verdict"])
         # A producer that resumes sending clears the silence incident; the
@@ -203,11 +229,14 @@ class Agent:
             "version": __version__,
             "counters": self.counters(),
             "alerts": list(self.alerts),
-            "runs": {run_id: {"task": run.task, "started": run.started,
+            "runs": {run_id: {"task": run.task, "seed": run.seed,
+                              "started": run.started,
                               "finished": run.finished, "events": run.events,
                               "last_step": run.last_step,
                               "last_metrics": run.last_metrics,
                               "verdict": run.verdict,
+                              "attempt": run.attempt,
+                              "resumed_after_cancelled": run.resumed_after_cancelled,
                               "staleness_seconds": round(now - run.last_event_wall, 3)
                               if run.events else None}
                      for run_id, run in self._runs.items()},
@@ -237,12 +266,20 @@ class Agent:
             "# HELP sentinel_alert_failures_total Webhook delivery failures.",
             "# TYPE sentinel_alert_failures_total counter",
             f"sentinel_alert_failures_total {self._counters['alert_failures']}",
+            "# HELP sentinel_preemptions_total Cancelled finishes observed (preemptions).",
+            "# TYPE sentinel_preemptions_total counter",
+            f"sentinel_preemptions_total {self._counters['preemptions']}",
+            "# HELP sentinel_steps_lost_total Last steps of cancelled runs; a floor on wasted compute.",
+            "# TYPE sentinel_steps_lost_total counter",
+            f"sentinel_steps_lost_total {self._counters['steps_lost']}",
             "# HELP sentinel_run_staleness_seconds Seconds since the run last emitted any event.",
             "# TYPE sentinel_run_staleness_seconds gauge",
             "# HELP sentinel_run_data_age_seconds Seconds since the newest available_at.",
             "# TYPE sentinel_run_data_age_seconds gauge",
             "# HELP sentinel_run_finished Whether a finish event was observed.",
             "# TYPE sentinel_run_finished gauge",
+            "# HELP sentinel_run_attempt Observed-start ordinal for the run's (task, seed).",
+            "# TYPE sentinel_run_attempt gauge",
         ]
         for name in metric_names:
             lines.append(f"# HELP sentinel_run_{name} Last observed {name} of the run.")
@@ -256,6 +293,7 @@ class Agent:
             lines.append(f"sentinel_run_data_age_seconds{labels} "
                          f"{max(0.0, now - run.last_available_at):.3f}")
             lines.append(f"sentinel_run_finished{labels} {1 if run.finished else 0}")
+            lines.append(f"sentinel_run_attempt{labels} {run.attempt}")
             if run.last_step is not None:
                 lines.append(f"sentinel_run_last_step{labels} {run.last_step}")
             for key, value in run.last_metrics.items():

@@ -156,7 +156,7 @@ Every monitoring stack shares one silent failure mode: it judges health by the l
 - *What does the data say?* — last observed sample metrics, exposed to Prometheus.
 - *Is the data still alive?* — wall-clock silence of the producer per active run.
 
-It alerts on the second (`producer_silence`) without waiting for a finish event or a metric threshold, and it never touches the training process: alerts notify a human (opt-in Feishu-style webhook); decisions stay recommendation-only. Producer events are validated through the frozen schema-v2 contract before they are written; the agent drops what the contract does not vouch for (`sentinel_events_invalid_total`), dedups at-least-once delivery by `event_id`, and rebuilds its state by replaying the stream after a crash. Framework adapters (SB3, Lightning) wrap training loops in a few lines without changing their behavior — see [Watchdog integrations](docs/WATCHDOG_INTEGRATIONS.md).
+It alerts on the second (`producer_silence`) without waiting for a finish event or a metric threshold, and it never touches the training process: alerts notify a human (opt-in Feishu-style webhook); decisions stay recommendation-only. Producer events are validated through the frozen schema-v2 contract before they are written; the agent drops what the contract does not vouch for (`sentinel_events_invalid_total`), dedups at-least-once delivery by `event_id`, and rebuilds its state by replaying the stream after a crash. Framework adapters (SB3, Lightning) wrap training loops in a few lines without changing their behavior, and preemption signals become honest `finish("cancelled")` evidence with agent-derived resume lineage (attempt ordinal, lost steps) — no schema change. See [Watchdog integrations](docs/WATCHDOG_INTEGRATIONS.md).
 
 ```bash
 # one trainer that hangs after 40 healthy samples + one watchdog
@@ -170,7 +170,7 @@ curl -s localhost:9101/metrics | grep staleness
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-The registered claim `agent.hang-demo.staleness` re-proves the whole chain deterministically in CI (virtual clock, no network) via `python -m sentinel_agent selftest`.
+The registered claims `agent.hang-demo.staleness` and `agent.selftest.resilience` re-prove the whole chain deterministically in CI (virtual clock, no network) via `python -m sentinel_agent selftest`.
 
 <a id="evidence"></a>
 ## Evidence

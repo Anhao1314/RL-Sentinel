@@ -92,6 +92,30 @@ python -m sentinel_agent watch --events events.jsonl --stale-after 120 \
 One full-stack demo (trainer that hangs + agent + Prometheus + Grafana) is
 one command away: `docker compose -f deploy/docker-compose.yml up --build`.
 
+## Preemption and resume (no schema change)
+
+Platform kills arrive as signals; SIGKILL cannot be intercepted at all. The
+watchdog layer turns what *can* be intercepted into evidence:
+
+```python
+from sentinel_agent.resilience import preemption_guard
+
+with preemption_guard(producer):     # SIGTERM/SIGINT -> finish("cancelled") + fsync
+    run_training(producer)           # then the platform's kill proceeds as usual
+```
+
+A retried attempt uses a new `run_id` (the frozen contract already requires
+this), and the agent derives the lineage from `(task, seed)` start ordering —
+no new event kinds, no payload extension:
+
+- `attempt` — observed-start ordinal for the run's `(task, seed)`;
+- `resumed_after_cancelled` — the previous attempt ended cancelled;
+- `sentinel_preemptions_total` / `sentinel_steps_lost_total` — a floor on
+  wasted compute (each cancelled run's last observed step).
+
+Independent reruns of the same `(task, seed)` are also counted as attempts;
+the lineage is an agent-side derived view, not a producer claim.
+
 ## Boundaries
 
 - `planned_steps` is a producer claim, not a verified budget.

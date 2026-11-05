@@ -50,6 +50,39 @@ def _write_hung_run(path: Path, clock: _VirtualClock, *, stale_after: float) -> 
     return producer.written
 
 
+def _write_cancelled_and_resume(preempt_path: Path, resume_path: Path,
+                                clock: _VirtualClock) -> int:
+    """A cancelled attempt and its retry: same (task, seed), new run_ids.
+
+    The frozen contract already forbids a second start per run ("retries need
+    a new run_id"), so preemption/resume needs no schema change — the agent
+    derives the lineage from start ordering.
+    """
+    written = 0
+    preempt = SentinelProducer(out_path=preempt_path, run_id="selftest-preempt",
+                               task="hang-demo", seed="resume", planned_steps=1000,
+                               clock=clock)
+    try:
+        preempt.start()
+        for step in range(1, 11):
+            preempt.sample(step, reward=round(0.4 + 0.05 * step, 6), approx_kl=0.012)
+        clock.advance(1)
+        preempt.finish("cancelled")
+    finally:
+        preempt.close()
+    written += preempt.written
+    resume = SentinelProducer(out_path=resume_path, run_id="selftest-resume",
+                              task="hang-demo", seed="resume", planned_steps=1000,
+                              clock=clock)
+    try:
+        resume.start()
+        clock.advance(1)
+        resume.finish("completed")
+    finally:
+        resume.close()
+    return written + resume.written
+
+
 def selftest(out: Path) -> dict[str, object]:
     """Prove the staleness trap detection end-to-end and publish it as evidence.
 
@@ -94,6 +127,21 @@ def selftest(out: Path) -> dict[str, object]:
         agent.ingest(finished.to_dict())
         assert agent.evaluate() == []  # finished runs never alert
 
+        # Resilience chain: a cancelled attempt and its resume, same (task, seed).
+        preempt_path = tmp_path / "preempt.jsonl"
+        resume_path = tmp_path / "resume.jsonl"
+        _write_cancelled_and_resume(preempt_path, resume_path, clock)
+        replay_file(agent, preempt_path)
+        replay_file(agent, resume_path)
+        state = agent.snapshot()
+        resilience = {
+            "preemptions_total": agent.counters()["preemptions"],
+            "steps_lost_total": agent.counters()["steps_lost"],
+            "resumed_attempt": state["runs"]["selftest-resume"]["attempt"],
+            "resumed_after_cancel": state["runs"]["selftest-resume"]["resumed_after_cancelled"],
+        }
+        assert agent.evaluate() == []  # cancelled and resumed runs are finished: no alerts
+
         counters = agent.counters()
         result: dict[str, object] = {
             "title": "sentinel agent staleness self-test",
@@ -110,6 +158,7 @@ def selftest(out: Path) -> dict[str, object]:
             },
             "producer": {"events_written": events, "schema_version": 2,
                          "virtual_clock_base": _SELFTEST_BASE},
+            "resilience": resilience,
         }
         stream = events_path.read_bytes()
         publish_bundle(out, {"results.json": canonical(result) + "\n"},

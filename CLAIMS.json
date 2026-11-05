@@ -92,6 +92,24 @@
           "invalid": 0
         }
       }
+    },
+    {
+      "id": "agent.selftest.resilience",
+      "statement": "Without any schema change, the agent derives resume lineage from (task, seed): a retry after a cancelled attempt is reported as attempt 2, with the cancelled run's last observed step counted as lost compute.",
+      "status": "verified",
+      "denominator": "1 cancelled run + 1 retry under a virtual clock; steps_lost sums each cancelled run's last observed step, a floor on wasted compute rather than an exact measure",
+      "boundary": "Lineage is an agent-side derived view keyed on (task, seed); independent reruns of the same (task, seed) are also counted as attempts. SIGKILL cannot be intercepted by any handler; the producer-silence alert is the net for that case.",
+      "reproduce": ["python", "-m", "sentinel_agent", "selftest", "--out", "{bundle}"],
+      "artifact": "results.json",
+      "check": {
+        "path": "resilience",
+        "equals": {
+          "preemptions_total": 1,
+          "steps_lost_total": 10,
+          "resumed_attempt": 2,
+          "resumed_after_cancel": true
+        }
+      }
     }
   ]
 }

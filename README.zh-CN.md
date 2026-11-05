@@ -158,7 +158,7 @@ Windows run directory
 - *数据说了什么？* —— 最后一条样本指标，暴露给 Prometheus；
 - *数据还活着吗？* —— 每个活跃 run 的 producer 墙钟静默时长。
 
-守护层对后者告警（`producer_silence`）：不等 finish 事件、不等指标越阈值。它不触碰训练进程——告警仅通知人工（可选飞书格式 webhook），决策保持 recommendation-only。producer 事件写入前先过冻结的 schema-v2 契约；agent 丢弃契约不背书的数据（`sentinel_events_invalid_total`），按 `event_id` 对 at-least-once 摄入去重，崩溃后通过全量重放重建状态。框架适配器（SB3、Lightning）几行代码接入训练循环且不改变其行为——见[守护层接入指南](docs/WATCHDOG_INTEGRATIONS.md)。
+守护层对后者告警（`producer_silence`）：不等 finish 事件、不等指标越阈值。它不触碰训练进程——告警仅通知人工（可选飞书格式 webhook），决策保持 recommendation-only。producer 事件写入前先过冻结的 schema-v2 契约；agent 丢弃契约不背书的数据（`sentinel_events_invalid_total`），按 `event_id` 对 at-least-once 摄入去重，崩溃后通过全量重放重建状态。框架适配器（SB3、Lightning）几行代码接入训练循环且不改变其行为；抢占信号转为诚实的 `finish("cancelled")` 证据，续跑谱系（attempt 序号、损失步数）由 agent 侧派生、零 schema 改动——见[守护层接入指南](docs/WATCHDOG_INTEGRATIONS.md)。
 
 ```bash
 # 一个「健康 40 步后挂死」的演示训练器 + 一个守护进程
@@ -172,8 +172,8 @@ curl -s localhost:9101/metrics | grep staleness
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-已登记声明 `agent.hang-demo.staleness` 在 CI 中确定性复验全链路（虚拟时钟、无网络）：
-`python -m sentinel_agent selftest`。
+已登记声明 `agent.hang-demo.staleness` 与 `agent.selftest.resilience` 在 CI 中确定性复验全链路
+（虚拟时钟、无网络）：`python -m sentinel_agent selftest`。
 
 <a id="evidence"></a>
 ## 证据
