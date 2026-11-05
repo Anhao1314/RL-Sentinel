@@ -32,6 +32,10 @@
   agent 按 (task, seed) 派生续跑谱系（`attempt` 序号、`resumed_after_cancelled`）与浪费算力
   下限（`sentinel_preemptions_total` / `sentinel_steps_lost_total`），零 schema 改动；
   登记声明 `agent.selftest.resilience`（verified，与 staleness 同一 selftest 复现）。
+- 操作台：`sentinel_agent/console.py` 在 agent 根路径侍服单文件零依赖控制台——
+  SSE（`/stream`）实时推送快照，canvas 绘制 silence/reward 双曲线、run 谱系表（attempt/
+  续跑标志）、告警流；动态数据仅经 `textContent` 注入（无模板注入面），缺失指标显示 —
+  而非 0；Grafana 仍负责长程分析，操作台负责"现在谁挂了"。
 - 登记声明 `agent.hang-demo.staleness`（verified）：`python -m sentinel_agent selftest` 以虚拟时钟
   确定性复现「最后指标看似健康 → 静默告警 → 数据恢复后重置 → finish 后不再告警」全链路。
 - CI：strict-core job 增跑 `tests_agent/`；ruff 门禁覆盖 `sentinel_agent`、`tests_agent`。

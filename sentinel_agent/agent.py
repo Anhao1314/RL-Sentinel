@@ -227,6 +227,7 @@ class Agent:
         now = self._now()
         return {
             "version": __version__,
+            "stale_after": self.config.stale_after,
             "counters": self.counters(),
             "alerts": list(self.alerts),
             "runs": {run_id: {"task": run.task, "seed": run.seed,
@@ -348,7 +349,14 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         agent: Agent = self.server.agent  # type: ignore[attr-defined]
         path = self.path.split("?", 1)[0]
-        if path == "/metrics":
+        if path == "/" or path == "/index.html":
+            from .console import console_html
+
+            self._respond(200, "text/html; charset=utf-8",
+                          console_html(__version__).encode("utf-8"))
+        elif path == "/stream":
+            self._stream_sse(agent)
+        elif path == "/metrics":
             self._respond(200, "text/plain; charset=utf-8",
                           agent.metrics_text().encode("utf-8"))
         elif path == "/healthz":
@@ -358,6 +366,27 @@ class _Handler(BaseHTTPRequestHandler):
                           canonical(agent.snapshot()).encode("utf-8"))
         else:
             self._respond(404, "text/plain; charset=utf-8", b"not found")
+
+    def _stream_sse(self, agent: Agent) -> None:
+        """Server-Sent Events: one full snapshot per poll interval.
+
+        The page is a single static template, so nothing user-controlled is
+        ever embedded in HTML; run data reaches the browser as JSON and is
+        inserted via textContent.  A dead viewer is noticed by the next
+        failed write and the handler exits quietly.
+        """
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            while True:
+                self.wfile.write(b"data: "
+                                 + canonical(agent.snapshot()).encode("utf-8") + b"\n\n")
+                self.wfile.flush()
+                time.sleep(agent.config.poll_interval)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
 
     def do_POST(self) -> None:
         agent: Agent = self.server.agent  # type: ignore[attr-defined]

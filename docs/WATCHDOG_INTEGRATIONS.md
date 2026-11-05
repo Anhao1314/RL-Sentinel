@@ -89,6 +89,11 @@ python -m sentinel_agent watch --events events.jsonl --stale-after 120 \
     --webhook-url "$SENTINEL_WEBHOOK"   # optional; notifies a human only
 ```
 
+Open the agent's root path (`/`) for the built-in operator console: live
+staleness/reward charts, the per-run lineage table and the alert feed, pushed
+over Server-Sent Events from a single static HTML file (no build step, no
+framework). Grafana (see `deploy/`) remains the long-range analytics surface.
+
 One full-stack demo (trainer that hangs + agent + Prometheus + Grafana) is
 one command away: `docker compose -f deploy/docker-compose.yml up --build`.
 
