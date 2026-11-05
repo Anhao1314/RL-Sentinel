@@ -33,6 +33,10 @@ class ConsolePageTests(unittest.TestCase):
         self.assertIn("9.9.9-test", html)
         self.assertIn("<canvas", html)
         self.assertIn("EventSource", html)
+        # v2 console: axes, threshold line, window selector, real alert times.
+        self.assertIn("阈值", html)
+        self.assertIn("fired_at", html)
+        self.assertIn("data-w", html)
         # No dynamic data is embedded: run data reaches the page via /stream.
         self.assertNotIn("run-1", html)
         self.assertNotIn("hang-demo", html)

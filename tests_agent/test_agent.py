@@ -65,6 +65,7 @@ class SilenceDetectionTests(unittest.TestCase):
         self.assertEqual(alerts[0]["type"], "producer_silence")
         self.assertEqual(alerts[0]["run_id"], "run-1")
         self.assertIn("staleness trap", alerts[0]["message"])
+        self.assertAlmostEqual(alerts[0]["fired_at"], clock.now, places=3)
         # Re-evaluating without new data must not duplicate the alert.
         self.assertEqual(agent.evaluate(), [])
         self.assertEqual(agent.counters()["silence_alerts"], 1)

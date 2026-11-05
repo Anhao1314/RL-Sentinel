@@ -10,6 +10,16 @@
 - 命名历史：RL Sentinel / rl_risk_replay / 发行包名 rl-training-risk-replay（pyproject.toml）/
   CLI 名 rl-risk。
 
+## [Unreleased]
+
+### 改进
+
+- 操作台 v2：图表增加 Y/X 坐标轴与刻度、`stale_after` 红色阈值虚线、渐变填充、图例带
+  当前值；时间窗口切换（5m/15m）；Runs 表 silence 列改进度条（超阈值变红）、状态列加
+  彩点；告警流显示真实触发时间（alert 新增 `fired_at`，取 agent 墙钟）；告警去重键由
+  条数改为末条消息，避免 agent 重启后漏渲染。
+- **修复 UI 层 N/A≠0 违规**：reward 缺失时曲线断线，不再把 0 画进 reward 图。
+
 ## [0.4.0] - 2026-11-06
 
 ### 新增（训练平台层，2026-11-06）

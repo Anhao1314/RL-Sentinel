@@ -206,6 +206,7 @@ class Agent:
                 continue
             alert: Alert = {
                 "type": "producer_silence", "run_id": run.run_id, "task": run.task,
+                "fired_at": now,
                 "stale_seconds": round(stale, 3), "stale_after": self.config.stale_after,
                 "last_step": run.last_step, "last_metrics": dict(run.last_metrics),
                 "message": (
