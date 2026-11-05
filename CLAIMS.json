@@ -118,6 +118,23 @@
       "denominator": "2 real runs on 2026-11-06 (Apple M5, Python 3.12.14, torch 2.15.0, stable-baselines3 2.9.2, gymnasium 1.4.0): attempt 1 interrupted by SIGTERM at 358,145 steps, attempt 2 completed 40,705 steps; 1,548 events ingested by the agent with 0 contract rejections",
       "boundary": "Local reproduction only: torch and stable-baselines3 are deliberately not CI dependencies, so these numbers are not recomputable from this repository. SB3's logger clears on every dump, so sample metrics arrive in bursts; rollout/ep_rew_mean capture is timing-dependent and the observed samples carry train/* metrics. The adapter was additionally exercised via stub tests that remain CI-gated.",
       "blocker": "Not CI-reproducible without installing torch/SB3 in CI. Reproduce locally with scripts/sb3_real_demo.py against any running agent (POST the event files to /events); output depends on wall-clock timing."
+    },
+    {
+      "id": "agent.selftest.bridge",
+      "statement": "One command carries agent-collected events into the frozen-core analysis layer: export validates and deduplicates the raw stream under an explicitly declared origin, and the as-of replay runs on it with decisions only at observable checkpoints and readiness honestly blocked.",
+      "status": "verified",
+      "denominator": "1 synthetic hung run (virtual clock, 900 samples of a 1,000-step budget) analyzed end to end; 3 policies x 3 checkpoints = 9 decision rows",
+      "boundary": "Demonstrates the pipeline, not policy effectiveness: the cohort has no labels, so readiness is blocked by design. Origin is an operator declaration ('synthetic' here), not an attestation.",
+      "reproduce": ["python", "-m", "sentinel_agent", "selftest", "--out", "{bundle}"],
+      "artifact": "results.json",
+      "check": {
+        "path": "analysis",
+        "equals": {
+          "origin": "synthetic",
+          "decisions": 9,
+          "readiness": "blocked"
+        }
+      }
     }
   ]
 }

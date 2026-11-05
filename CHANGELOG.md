@@ -12,6 +12,15 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **守护层 → 分析层桥接**：`sentinel_agent/bridge.py` + `sentinel-agent export / analyze`
+  子命令——origin 由操作者显式声明（来源是人的断言，不是文件默认值），逐事件契约校验、
+  `event_id` 去重（幂等重跑）、容忍崩溃写入者的一条尾行、输出永不覆盖；`analyze` 一条命令
+  直达冻结核心 as-of 回放证据包。selftest 第三段验证桥接全链路
+  （登记声明 `agent.selftest.bridge`，verified）；真实 SB3 事件流实测
+  1,394 事件 → 9 决策行，readiness 如实 blocked。
+
 ### 改进
 
 - 操作台 v2：图表增加 Y/X 坐标轴与刻度、`stale_after` 红色阈值虚线、渐变填充、图例带

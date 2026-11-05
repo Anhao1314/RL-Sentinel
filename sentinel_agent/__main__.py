@@ -39,12 +39,14 @@ class _VirtualClock:
 def _write_hung_run(path: Path, clock: _VirtualClock, *, stale_after: float) -> int:
     """Write a run that goes silent well beyond ``stale_after`` and never finishes."""
     producer = SentinelProducer(out_path=path, run_id="selftest-hang", task="hang-demo",
-                                seed="selftest", planned_steps=1000, clock=clock)
+                                seed="selftest", planned_steps=1000, clock=clock,
+                                fsync_every=64)
     try:
         producer.start()
-        for step in range(1, 11):
+        for step in range(1, 901):
             producer.sample(step, reward=round(0.3 + 0.1 * step, 6),
-                            approx_kl=0.012, progress=round(step / 100, 6))
+                            approx_kl=0.012, progress=round(step / 1000, 6))
+            clock.advance(1)  # distinct event times: keeps the stream replay-valid
         clock.advance(stale_after * 4)  # writer deadlocks here; nothing more arrives
     finally:
         producer.close()
@@ -145,6 +147,21 @@ def selftest(out: Path) -> dict[str, object]:
         }
         assert agent.evaluate() == []  # cancelled and resumed runs are finished: no alerts
 
+        # Bridge: the SAME stream, now analyzed by the frozen core (origin
+        # declared by the caller).  The checkpoints are observable, the rule
+        # policy decides "continue" on the healthy ramp, and readiness stays
+        # blocked — one labeled run is not a statistical conclusion.
+        analysis_bundle = tmp_path / "replay-bundle"
+        from .bridge import analyze
+
+        analysis = analyze([events_path], "synthetic", analysis_bundle)
+        summaries = cast("list[dict[str, object]]", analysis["summaries"])
+        analysis_doc: dict[str, object] = {
+            "origin": analysis["origin"],
+            "decisions": analysis["decisions"],
+            "readiness": summaries[0]["readiness"],
+        }
+
         counters = agent.counters()
         result: dict[str, object] = {
             "title": "sentinel agent staleness self-test",
@@ -162,6 +179,7 @@ def selftest(out: Path) -> dict[str, object]:
             "producer": {"events_written": events, "schema_version": 2,
                          "virtual_clock_base": _SELFTEST_BASE},
             "resilience": resilience,
+            "analysis": analysis_doc,
         }
         stream = events_path.read_bytes()
         publish_bundle(out, {"results.json": canonical(result) + "\n"},
@@ -191,6 +209,20 @@ def main(argv: list[str] | None = None) -> int:
     demo.add_argument("--interval", type=float, default=1.0)
     demo.add_argument("--complete", action="store_true",
                       help="finish normally instead of hanging")
+    export = sub.add_parser("export",
+                            help="dedupe raw producer JSONL into a replay-ready versioned stream")
+    export.add_argument("--events", action="append", required=True,
+                        help="raw events file; repeatable (multi-attempt runs)")
+    export.add_argument("--origin", required=True, choices=("observed", "synthetic", "controlled"),
+                        help="provenance is an explicit human claim, not a file default")
+    export.add_argument("--out", required=True, help="versioned stream path (never overwritten)")
+    analyze = sub.add_parser("analyze", help="export + frozen-core as-of replay in one command")
+    analyze.add_argument("--events", action="append", required=True)
+    analyze.add_argument("--origin", required=True, choices=("observed", "synthetic", "controlled"))
+    analyze.add_argument("--out", required=True, help="new evidence-bundle directory")
+    analyze.add_argument("--policy", choices=("rules", "always-continue", "always-stop", "all"),
+                         default="all")
+    analyze.add_argument("--progress", default="0.3,0.5,0.7")
     test = sub.add_parser("selftest", help="deterministic staleness-detection evidence bundle")
     test.add_argument("--out", required=True)
     args = parser.parse_args(argv)
@@ -207,6 +239,15 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "demo":
             result = run_demo(Path(args.out), samples=args.samples, interval=args.interval,
                               hang=not args.complete)
+        elif args.command == "export":
+            from .bridge import export_stream
+
+            result = export_stream([Path(p) for p in args.events], args.origin, Path(args.out))
+        elif args.command == "analyze":
+            from .bridge import analyze
+
+            result = analyze([Path(p) for p in args.events], args.origin, Path(args.out),
+                             policy=args.policy, progress=args.progress)
         else:
             result = selftest(Path(args.out))
         print(canonical(result))

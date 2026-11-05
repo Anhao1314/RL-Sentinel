@@ -97,6 +97,28 @@ framework). Grafana (see `deploy/`) remains the long-range analytics surface.
 One full-stack demo (trainer that hangs + agent + Prometheus + Grafana) is
 one command away: `docker compose -f deploy/docker-compose.yml up --build`.
 
+## From watchdog to analysis (one command)
+
+The watchdog and the analysis layer share one event vocabulary but speak two
+formats: the agent ingests raw producer JSONL, while the offline replay
+consumes a versioned stream whose first line declares `origin` — a provenance
+claim made by a human, not a file default.  The bridge makes that explicit
+step a single command:
+
+```bash
+# validate + dedupe + declare origin (repeatable --events for multi-attempt runs)
+python -m sentinel_agent export --events events.jsonl --origin observed --out stream.jsonl
+
+# ...or go all the way to the as-of replay bundle
+python -m sentinel_agent analyze --events events.jsonl --origin observed --out /tmp/replay-a1
+```
+
+Both paths validate every event against the frozen contract, deduplicate by
+`event_id` (idempotent re-runs), tolerate one trailing partial line from a
+crashed writer, and never overwrite outputs.  Readiness stays `blocked`
+unless the cohort meets its labeled-run thresholds — a working pipeline does
+not unlock conclusions.
+
 ## Preemption and resume (no schema change)
 
 Platform kills arrive as signals; SIGKILL cannot be intercepted at all. The
