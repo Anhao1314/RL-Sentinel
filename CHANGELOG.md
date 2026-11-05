@@ -23,6 +23,10 @@
   （at-least-once 摄入安全）、崩溃后全量重放重建状态、Prometheus 文本指标（缺失指标不伪造为 0）、
   可选飞书格式 webhook（仅通知人工核查，不触碰训练进程）。
 - 部署：`deploy/` 一键 compose（trainer + agent + Prometheus + Grafana 预置看板，匿名只读）。
+- 框架适配：`sentinel_agent/integrations/`——SB3 与 Lightning 回调（懒加载框架，观察者语义
+  永不中止训练；重复 step 与非有限值跳过而非伪造）；`MetricForwarder` 框架无关搬运逻辑以
+  桩基类测试，无需安装框架；`docs/WATCHDOG_INTEGRATIONS.md` 覆盖通用循环 / SB3 / Lightning /
+  torchrun 多进程（rank 编码进 run_id，每 rank 独立文件 + 独立 agent）与 HTTP 摄入模式。
 - 登记声明 `agent.hang-demo.staleness`（verified）：`python -m sentinel_agent selftest` 以虚拟时钟
   确定性复现「最后指标看似健康 → 静默告警 → 数据恢复后重置 → finish 后不再告警」全链路。
 - CI：strict-core job 增跑 `tests_agent/`；ruff 门禁覆盖 `sentinel_agent`、`tests_agent`。

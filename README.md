@@ -156,7 +156,7 @@ Every monitoring stack shares one silent failure mode: it judges health by the l
 - *What does the data say?* — last observed sample metrics, exposed to Prometheus.
 - *Is the data still alive?* — wall-clock silence of the producer per active run.
 
-It alerts on the second (`producer_silence`) without waiting for a finish event or a metric threshold, and it never touches the training process: alerts notify a human (opt-in Feishu-style webhook); decisions stay recommendation-only. Producer events are validated through the frozen schema-v2 contract before they are written; the agent drops what the contract does not vouch for (`sentinel_events_invalid_total`), dedups at-least-once delivery by `event_id`, and rebuilds its state by replaying the stream after a crash.
+It alerts on the second (`producer_silence`) without waiting for a finish event or a metric threshold, and it never touches the training process: alerts notify a human (opt-in Feishu-style webhook); decisions stay recommendation-only. Producer events are validated through the frozen schema-v2 contract before they are written; the agent drops what the contract does not vouch for (`sentinel_events_invalid_total`), dedups at-least-once delivery by `event_id`, and rebuilds its state by replaying the stream after a crash. Framework adapters (SB3, Lightning) wrap training loops in a few lines without changing their behavior — see [Watchdog integrations](docs/WATCHDOG_INTEGRATIONS.md).
 
 ```bash
 # one trainer that hangs after 40 healthy samples + one watchdog
