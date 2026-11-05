@@ -12,8 +12,8 @@ from contextlib import closing
 from pathlib import Path
 from typing import Callable, Mapping, cast
 
-from .events import (ContractError, Event, Kind, Origin, Scalar, canonical, make_event,
-                     mapping, number, parse_json, validate_events)
+from .events import (ContractError, Event, Kind, Origin, Scalar, canonical, integer,
+                     make_event, mapping, number, parse_json, validate_events)
 
 # A crashed publisher used to leave an empty O_EXCL lock file forever, making
 # the output directory permanently unusable.  Locks now carry a creation time
@@ -154,7 +154,7 @@ def _reclaim_stale_lock(lock: Path) -> bool:
         created_ns: int | None = None
         if raw.strip():
             try:
-                created_ns = int(mapping(parse_json(raw))["created_ns"])
+                created_ns = integer(mapping(parse_json(raw))["created_ns"], "created_ns")
             except (ContractError, KeyError, TypeError, ValueError):
                 return False
         if created_ns is None:
